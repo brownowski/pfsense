@@ -194,37 +194,24 @@ function filter_configure() {
 }
 
 function filter_delete_states_for_down_gateways() {
-	global $config, $GatewaysList;
+	global $config;
 
 	if (!isset($config['system']['gw_down_kill_states'])) {
 		return;
 	}
 
-	$any_gateway_down = false;
 	$a_gateways = return_gateways_status();
-	if (is_array($GatewaysList)) {
-		foreach ($GatewaysList as $gwname => $gateway) {
-			if (empty($gateway['monitor'])) {
-				continue;
-			}
-			if (!is_ipaddr($gateway['monitor'])) {
-				continue;
-			}
-			if (strstr($gateway['monitor'], "127.0.0.")) {
-				continue;
-			}
-			if (empty($a_gateways[$gateway['monitor']])) {
-				continue;
-			}
-			$gwstatus =& $a_gateways[$gateway['monitor']];
-			if (strstr($gwstatus['status'], "down")) {
-				$any_gateway_down = true;
-				break;
+	$gateways = return_gateways_array();
+
+	foreach($a_gateways as $gwip => $gateway) {
+		if (is_ipaddr($gwip) && ($gateway['status'] == 'down' || $gateway['status'] == 'force_down')) {
+			log_error("Killing states for down gateway {$gateway['name']} ({$gwip})");
+			$output = array();
+			exec("/sbin/pfctl -M -k gateway -k {$gwip} 2>&1", $output);
+			if (is_array($output) && isset($output[0])) {
+				log_error($output[0]);
 			}
 		}
-	}
-	if ($any_gateway_down == true) {
-		mwexec("/sbin/pfctl -Fs");
 	}
 }
 
