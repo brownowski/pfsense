@@ -190,38 +190,88 @@ function filter_configure() {
 }
 
 function filter_delete_states_for_down_gateways() {
-	global $config, $GatewaysList;
+	global $config;
 
 	if (!isset($config['system']['gw_down_kill_states'])) {
 		return;
 	}
 
 	$any_gateway_down = false;
+
+	$num_states = `/sbin/pfctl -si | grep current`;
+	if (preg_match("/([0-9]+)/", $num_states, $matches)) {
+		$num_states = $matches[1];
+	}
+	if (!is_numeric($num_states)) {
+		$num_states = 0;
+	}
+
 	$a_gateways = return_gateways_status();
-	if (is_array($GatewaysList)) {
-		foreach ($GatewaysList as $gwname => $gateway) {
-			if (empty($gateway['monitor'])) {
-				continue;
-			}
-			if (!is_ipaddr($gateway['monitor'])) {
-				continue;
-			}
-			if (strstr($gateway['monitor'], "127.0.0.")) {
-				continue;
-			}
-			if (empty($a_gateways[$gateway['monitor']])) {
-				continue;
-			}
-			$gwstatus = &$a_gateways[$gateway['monitor']];
-			if (strstr($gwstatus['status'], "down")) {
-				$any_gateway_down = true;
-				break;
+	$gateways = return_gateways_array();
+
+	$down_interfaces = array();
+
+	foreach ($gateways as $gwname => $gateway) {
+		$int = $gateway['interface'];
+
+		foreach ($a_gateways as $gwstatus_ip => $gwstatus) {
+			if ($gateway['name'] == $gwstatus['name'] && (strstr($gwstatus['status'], "down") || strstr($gwstatus['status'], "forced_down") ) ) {
+				$down_interfaces[$int][$gwname] = $gwstatus_ip;
 			}
 		}
 	}
-	if ($any_gateway_down == true) {
-		mwexec("/sbin/pfctl -Fs");
+
+	if (count($down_interfaces)  < 1) {
+		return;
 	}
+
+	if ($num_states > 50000) {
+		log_error("Interface down but too many states to kill selectively - not killing states");
+		//mwexec("/sbin/pfctl -Fs");
+		return;
+	}
+
+	$states = array();
+	$filter = array();
+	foreach ($down_interfaces as $int => $gateway) {
+		$filter[] = array("interface" => $int);
+		$states = $states + pfSense_get_pf_states($filter);
+		log_error("Killing outbound states on interface (${int}) with down gateway...");
+	}
+
+	$killed_states = array();
+	$state_count = 0;
+
+	foreach ($states as $state) {
+		if ($state['direction'] != 'out') {
+			continue;
+		}
+		if ( strpos($state['src'],"[") || strpos($state['dst'],"[") ) {
+			continue;
+		}
+		if ( !strpos($state['src'],":") || !strpos($state['dst'],":") ) {
+			continue;
+		}
+		$dst = substr($state['dst'],0,strpos($state['dst'],":"));
+		$src = substr($state['src'],0,strpos($state['src'],":"));
+
+		if ( isset($state['src-orig']) && strpos($state['src-orig'],":") ) {
+			$state_count++;
+			$src_orig = $state['src-orig'];
+			$src_orig = substr($state['src-orig'],0,strpos($state['src-orig'],":"));
+			if(!isset($killed_states[$src_orig][$dst])) {
+				mwexec("/sbin/pfctl -k ${src_orig} -k ${dst}");
+				$killed_states[$src_orig][$dst] = true;
+			}
+		}
+		$state_count++;
+		if(!isset($killed_states[$src][$dst])) {
+			mwexec("/sbin/pfctl -k ${src} -k ${dst}");
+			$killed_states[$src][$dst] = true;
+		}
+	}
+	unset($states);
+	log_error("IP (src,dst) combinations killed: $state_count");
 }
 
 /* reload filter sync */
