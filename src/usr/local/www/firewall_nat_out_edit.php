@@ -3,7 +3,7 @@
  * firewall_nat_out_edit.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally based on m0n0wall (http://m0n0.ch/wall)
@@ -35,24 +35,10 @@ require_once("ipsec.inc");
 require_once("filter.inc");
 require_once("shaper.inc");
 
-if (!is_array($config['nat']['outbound'])) {
-	$config['nat']['outbound'] = array();
-}
-
-if (!is_array($config['nat']['outbound']['rule'])) {
-	$config['nat']['outbound']['rule'] = array();
-}
-
+init_config_arr(array('nat', 'outbound', 'rule'));
 $a_out = &$config['nat']['outbound']['rule'];
 
-if (!is_array($config['aliases'])) {
-	$config['aliases'] = array();
-}
-
-if (!is_array($config['aliases']['alias'])) {
-	$config['aliases']['alias'] = array();
-}
-
+init_config_arr(array('aliases', 'alias'));
 $a_aliases = &$config['aliases']['alias'];
 
 if (isset($_REQUEST['id']) && is_numericint($_REQUEST['id'])) {
@@ -77,6 +63,7 @@ if (isset($id) && $a_out[$id]) {
 		$pconfig['updated'] = $a_out[$id]['updated'];
 	}
 
+	$pconfig['ipprotocol'] = $a_out[$id]['ipprotocol'];
 	$pconfig['protocol'] = $a_out[$id]['protocol'];
 	list($pconfig['source'], $pconfig['source_subnet']) = explode('/', $a_out[$id]['source']['network']);
 	if (!is_numeric($pconfig['source_subnet'])) {
@@ -334,6 +321,12 @@ if ($_POST['save']) {
 			unset($natent['nonat']);
 		}
 
+		if ($_POST['ipprotocol'] && $_POST['ipprotocol'] != "inet46") {
+			$natent['ipprotocol'] = $_POST['ipprotocol'];
+		} else {
+			unset($natent['ipprotocol']);
+		}
+		
 		if ($_POST['protocol'] && $_POST['protocol'] != "any") {
 			$natent['protocol'] = $_POST['protocol'];
 		} else {
@@ -482,6 +475,17 @@ $section->addInput(new Form_Select(
 	$pconfig['interface'],
 	create_interface_list()
 ))->setHelp('The interface on which traffic is matched as it exits the firewall. In most cases this is "WAN" or another externally-connected interface.');
+
+$section->addInput(new Form_Select(
+	'ipprotocol',
+	'*Address Family',
+	$pconfig['ipprotocol'],
+	array(
+		'inet' => 'IPv4',
+		'inet6' => 'IPv6',
+		'' => 'IPv4+IPv6',
+	)
+))->setHelp('Select the Internet Protocol version this rule applies to.');
 
 $protocols = "any TCP UDP TCP/UDP ICMP ESP AH GRE IPV6 IGMP carp pfsync";
 

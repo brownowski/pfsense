@@ -3,7 +3,7 @@
  * service-utils.inc
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2005-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2005-2019 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2005-2006 Colin Smith (ethethlay@gmail.com)
  * All rights reserved.
  *
@@ -52,7 +52,7 @@ function write_rcfile($params) {
 	$towrite .= "\t{$params['start']}\n";
 	$towrite .= "}\n\n";
 	if (!empty($params['stop'])) {
-		$tokill =& $params['stop'];
+		$tokill = &$params['stop'];
 	} else if (!empty($params['executable'])) {
 		/* just nuke the executable */
 		$tokill = "/usr/bin/killall " . escapeshellarg($params['executable']);
@@ -74,7 +74,7 @@ function write_rcfile($params) {
 	return;
 }
 
-function start_service($name) {
+function start_service($name, $after_sync = false) {
 	global $config;
 
 	if (empty($name)) {
@@ -84,10 +84,15 @@ function start_service($name) {
 	if (is_array($config['installedpackages']) && is_array($config['installedpackages']['service'])) {
 		foreach ($config['installedpackages']['service'] as $service) {
 			if (strtolower($service['name']) == strtolower($name)) {
+				/* Avoid starting twice if this is called just after a
+				 * package sync which starts the service itself. */
+				if ($after_sync && isset($service['starts_on_sync'])) {
+					break;
+				}
 				if ($service['rcfile']) {
 					$prefix = RCFILEPREFIX;
 					if (!empty($service['prefix'])) {
-						$prefix =& $service['prefix'];
+						$prefix = &$service['prefix'];
 					}
 					if (file_exists("{$prefix}{$service['rcfile']}") || is_link("{$prefix}{$service['rcfile']}")) {
 						mwexec_bg("{$prefix}{$service['rcfile']} start");
@@ -115,7 +120,7 @@ function stop_service($name) {
 				if ($service['rcfile']) {
 					$prefix = RCFILEPREFIX;
 					if (!empty($service['prefix'])) {
-						$prefix =& $service['prefix'];
+						$prefix = &$service['prefix'];
 					}
 					if (file_exists("{$prefix}{$service['rcfile']}") || is_link("{$prefix}{$service['rcfile']}")) {
 						mwexec("{$prefix}{$service['rcfile']} stop");
@@ -346,7 +351,7 @@ function get_services() {
 		$services[] = $pconfig;
 	}
 
-	if (isset($config['system']['enablesshd'])) {
+	if (isset($config['system']['ssh']['enable'])) {
 		$pconfig = array();
 		$pconfig['name'] = "sshd";
 		$pconfig['description'] = gettext("Secure Shell Daemon");
@@ -733,8 +738,8 @@ function service_control_stop($name, $extras) {
 				sigkillbypid("{$g['varrun_path']}/syslog.pid", "KILL");
 				usleep(100000);
 			}
-			/* Make sure sshlockout_pf stops as well */
-			sigkillbyname("sshlockout_pf", "TERM");
+			/* Make sure sshguard stops as well */
+			sigkillbyname("sshguard", "TERM");
 			break;
 		default:
 			stop_service($name);

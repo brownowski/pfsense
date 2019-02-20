@@ -3,7 +3,7 @@
  * diag_tables.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,7 +34,7 @@ require_once("guiconfig.inc");
 exec("/sbin/pfctl -sT", $tables);
 
 // Set default table
-$tablename = "sshlockout";
+$tablename = "sshguard";
 
 if ($_REQUEST['type'] && in_array($_REQUEST['type'], $tables)) {
 	$tablename = $_REQUEST['type'];

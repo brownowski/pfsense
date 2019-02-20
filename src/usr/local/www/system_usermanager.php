@@ -3,7 +3,7 @@
  * system_usermanager.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2008 Shrew Soft Inc.
  * Copyright (c) 2005 Paul Taylor <paultaylor@winn-dixie.com>
  * All rights reserved.
@@ -45,10 +45,7 @@ if (isset($_REQUEST['userid']) && is_numericint($_REQUEST['userid'])) {
 	$id = $_REQUEST['userid'];
 }
 
-if (!isset($config['system']['user']) || !is_array($config['system']['user'])) {
-	$config['system']['user'] = array();
-}
-
+init_config_arr(array('system', 'user'));
 $a_user = &$config['system']['user'];
 $act = $_REQUEST['act'];
 
@@ -285,6 +282,10 @@ if ($_POST['save']) {
 			$input_errors[] = gettext("Invalid internal Certificate Authority") . "\n";
 		}
 	}
+	validate_webguicss_field($input_errors, $_POST['webguicss']);
+	validate_webguifixedmenu_field($input_errors, $_POST['webguifixedmenu']);
+	validate_webguihostnamemenu_field($input_errors, $_POST['webguihostnamemenu']);
+	validate_dashboardcolumns_field($input_errors, $_POST['dashboardcolumns']);
 
 	if (!$input_errors) {
 
@@ -405,15 +406,25 @@ if ($_POST['save']) {
 
 				$cert['descr'] = $_POST['name'];
 
-				$subject = cert_get_subject_array($ca['crt']);
+				$subject = cert_get_subject_hash($ca['crt']);
 
-				$dn = array(
-					'countryName' => $subject[0]['v'],
-					'stateOrProvinceName' => $subject[1]['v'],
-					'localityName' => $subject[2]['v'],
-					'organizationName' => $subject[3]['v'],
-					'emailAddress' => $subject[4]['v'],
-					'commonName' => $userent['name']);
+				$dn = array();
+				if (!empty($subject['C'])) {
+					$dn['countryName'] = $subject['C'];
+				}
+				if (!empty($subject['ST'])) {
+					$dn['stateOrProvinceName'] = $subject['ST'];
+				}
+				if (!empty($subject['L'])) {
+					$dn['localityName'] = $subject['L'];
+				}
+				if (!empty($subject['O'])) {
+					$dn['organizationName'] = $subject['O'];
+				}
+				if (!empty($subject['OU'])) {
+					$dn['organizationalUnitName'] = $subject['OU'];
+				}
+				$dn['commonName'] = $userent['name'];
 				$cn_altname = cert_add_altname_type($userent['name']);
 				if (!empty($cn_altname)) {
 					$dn['subjectAltName'] = $cn_altname;

@@ -3,7 +3,7 @@
  * head.inc
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -70,6 +70,7 @@ if (!isset($config['system']['webgui']['dashboardcolumns'])) {
 	<script type="text/javascript">
 	//<![CDATA[
 	var events = events || [];
+	var newSeperator = false;
 	//]]>
 	</script>
 </head>
@@ -153,9 +154,11 @@ function return_ext_menu($section) {
 
 	if ((!empty($config['installedpackages']['package'])) && (!empty($config['installedpackages']['menu']))) {
 		foreach ($config['installedpackages']['menu'] as $menu) {
-//			print('Name: ' . $menu['name'] . ', Pkg category: ' . $menu['category'] . ', Section: ' . $section . '<br />');
-			if ($menu['section'] == $section) {
-				$ext_menu_entries[] = $menu;
+			if ($menu['name'] != "AutoConfigBackup") { // AutoConfigBackup was moved to a built-in function
+	//			print('Name: ' . $menu['name'] . ', Pkg category: ' . $menu['category'] . ', Section: ' . $section . '<br />');
+				if ($menu['section'] == $section) {
+					$ext_menu_entries[] = $menu;
+				}
 			}
 		}
 	}
@@ -360,7 +363,7 @@ $status_menu[] = array(gettext("Package Logs"), "/status_pkglogs.php");
 $status_menu[] = array(gettext("Queues"), "/status_queues.php");
 $status_menu[] = array(gettext("Services"), "/status_services.php");
 $status_menu[] = array(gettext("System Logs"), "/status_logs.php");
-$status_menu[] = array(gettext("Traffic Graph"), "/status_graph.php?if=wan");
+$status_menu[] = array(gettext("Traffic Graph"), "/status_graph.php");
 
 if (count($config['interfaces']) > 1) {
 	$status_menu[] = array(gettext("UPnP &amp; NAT-PMP"), "/status_upnp.php");
@@ -440,7 +443,7 @@ if ($user_settings['webgui']['webguifixedmenu'] == "fixed") {
 	$menuclass = "fixed";
 }
 
-$numColumns = $user_settings['webgui']['dashboardcolumns'];
+$numColumns = (int) $user_settings['webgui']['dashboardcolumns'];
 
 if (($pagename === "index.php") && ($numColumns > 2)) {
 	$columnsContainer = 'style="max-width: ' . 585*$numColumns . 'px;width: 100%"';
@@ -547,7 +550,9 @@ if (are_notices_pending()) {
 	if ($_SESSION['Username'] == "admin") {
 		$cu = getUserEntry("admin");
 
-		if (password_verify($g['factory_shipped_password'], $cu['bcrypt-hash'])) {
+		$hash = (empty($cu['bcrypt-hash']) ? $cu['password'] : $cu['bcrypt-hash']);
+
+		if (password_verify($g['factory_shipped_password'], $hash)) {
 			print('<div class="alert alert-danger">' .
 				sprintf(gettext('%sWARNING:%s The \'admin\' account password is set to the default value. ' .
 				' %s Change the password in the User Manager.%s'),
@@ -675,15 +680,26 @@ if (('' != ($link = get_shortcut_log_link($shortcut_section, false))) && (isAllo
 	</header>
 <?php
 /* if upgrade in progress, alert user */
-if (is_subsystem_dirty('packagelock') || (file_exists('/conf/needs_package_sync') && platform_booting())) {
-	if (file_exists('/conf/needs_package_sync') && platform_booting()) {
-		$warning_text = sprintf(gettext('%1$s%3$s is booting, then packages will be reinstalled in the background.%2$s%1$sDo not make changes in the GUI until this is complete.%2$s'), '<p>', '</p>', $g['product_name']);
-	} else {
-		$pgtitle = array(gettext("System"), gettext("Package Manager"));
-		$warning_text = sprintf(gettext('%1$sPackages are currently being reinstalled in the background.%2$s%1$sDo not make changes in the GUI until this is complete.%2$s'), '<p>', '</p>');
-		$warning_text .= sprintf(gettext('%1$sIf the above message is still displayed after a couple of hours, use the \'Clear Package Lock\' button on the %3$s page and reinstall packages manually.%2$s'), '<p>', '</p>', sprintf('<a href="diag_backup.php" title="%1$s &gt; %2$s">%1$s &gt; %2$s</a>', gettext('Diagnostics'), htmlspecialchars(gettext('Backup & Restore'))));
-	}
+$warning_text = "";
+if (file_exists('/conf/needs_package_sync') && platform_booting()) {
+	$warning_text = sprintf(gettext(
+	    '%1$s%3$s is booting, then packages will be reinstalled in the ' .
+	    'background.%2$s%1$sDo not make changes in the GUI until this is ' .
+	    'complete.%2$s'), '<p>', '</p>', $g['product_name']);
+} elseif (is_subsystem_dirty('packagelock')) {
+	$pgtitle = array(gettext("System"), gettext("Package Manager"));
+	$warning_text = sprintf(gettext('%1$sPackages are currently being ' .
+	    'reinstalled in the background.%2$s%1$sDo not make changes in ' .
+	    'the GUI until this is complete.%2$s'), '<p>', '</p>');
+	$warning_text .= sprintf(gettext('%1$sIf the above message is still ' .
+	    'displayed after a couple of hours, use the \'Clear Package ' .
+	    'Lock\' button on the %3$s page and reinstall packages manually.' .
+	    '%2$s'), '<p>', '</p>', sprintf('<a href="diag_backup.php" ' .
+	    'title="%1$s &gt; %2$s">%1$s &gt; %2$s</a>', gettext('Diagnostics'),
+	    htmlspecialchars(gettext('Backup & Restore'))));
+}
 
+if (!empty($warning_text)) {
 	print_info_box($warning_text);
 }
 

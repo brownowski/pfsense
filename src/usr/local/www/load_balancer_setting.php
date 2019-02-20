@@ -3,7 +3,7 @@
  * load_balancer_setting.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2005-2008 Bill Marquette <bill.marquette@gmail.com>
  * Copyright (c) 2012 Pierre POMES <pierre.pomes@gmail.com>.
  * All rights reserved.
@@ -34,10 +34,7 @@ require_once("filter.inc");
 require_once("shaper.inc");
 require_once("util.inc");
 
-if (!is_array($config['load_balancer']['setting'])) {
-	$config['load_balancer']['setting'] = array();
-}
-
+init_config_arr(array('load_balancer', 'setting'));
 $lbsetting = &$config['load_balancer']['setting'];
 
 if ($_POST) {
@@ -47,6 +44,7 @@ if ($_POST) {
 		$retval |= relayd_configure();
 
 		clear_subsystem_dirty('loadbalancer');
+		$pconfig = $lbsetting;
 	} else {
 		unset($input_errors);
 		$pconfig = $_POST;
@@ -80,6 +78,8 @@ if ($_POST) {
 			mark_subsystem_dirty('loadbalancer');
 		}
 	}
+} else {
+	$pconfig = $lbsetting;
 }
 
 $pgtitle = array(gettext("Services"), gettext("Load Balancer"), gettext("Settings"));

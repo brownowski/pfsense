@@ -3,7 +3,7 @@
  * config.lib.inc
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2009 Erik Kristensen
  * All rights reserved.
  *
@@ -466,7 +466,7 @@ function write_config($desc="Unknown", $backup = true, $write_config_only = fals
 		if (!empty($_SESSION['Username']) && ($_SESSION['Username'] != "admin")) {
 			$user = getUserEntry($_SESSION['Username']);
 			if (is_array($user) && userHasPrivilege($user, "user-config-readonly")) {
-				syslog(LOG_AUTHPRIV, sprintf(gettext("Save config permission denied by the 'User - Config: Deny Config Write' permission for user '%s'."), $_SESSION['Username']));
+				syslog(LOG_AUTHPRIV, sprintf(gettext("Save config permission denied by the 'User - Config: Deny Config Write' permission for user '%s'."), get_config_user()));
 				phpsession_end(true);
 				return false;
 			}
@@ -545,9 +545,13 @@ function write_config($desc="Unknown", $backup = true, $write_config_only = fals
 	}
 
 	// Try the core AutoConfigBackup system
-	if (is_array($config['system']['acb']) && $config['system']['acb']['enable'] == "yes") {
+	if (is_array($config['system']['acb']) && $config['system']['acb']['enable'] == "yes" &&
+	    (!isset($config['system']['acb']['frequency']) || $config['system']['acb']['frequency'] == "every") || file_exists("/tmp/forceacb")) {
 		require_once("acb.inc");
 		upload_config();
+		if (file_exists("/tmp/forceacb")) {
+			unlink("/tmp/forceacb");
+		}
 	}
 
 	return $config;
@@ -562,10 +566,9 @@ function write_config($desc="Unknown", $backup = true, $write_config_only = fals
 function reset_factory_defaults($lock = false, $reboot_required = true) {
 	global $config, $g;
 
-
 	/* Remove all additional packages */
 	mwexec("/bin/sh /usr/local/sbin/{$g['product_name']}-upgrade " .
-	    "-r ALL_PACKAGES");
+	    "-r ALL_PACKAGES -f");
 
 	if (!$lock) {
 		$lockkey = lock('config', LOCK_EX);
@@ -904,7 +907,7 @@ function get_config_user() {
 	}
 
 	if (!empty($_SERVER['REMOTE_ADDR'])) {
-		$username .= '@' . $_SERVER['REMOTE_ADDR'];
+		$username .= '@' . get_user_remote_address() . get_user_remote_authsource();
 	}
 
 	return $username;
@@ -977,6 +980,24 @@ function pfSense_clear_globals() {
 	}
 
 	unset($config);
+}
+
+/* Initialize a config array multiple levels deep only if unset
+ * Pass it an array of keys to test and create
+ * init_config_arr(array('virtualip', 'vip'));
+ */
+function init_config_arr($keys) {
+	global $config;
+	$c = &$config;
+	if (!is_array($keys)) {
+		return null;
+	}
+	foreach ($keys as $k) {
+		if (!is_array($c[$k])) {
+			$c[$k] = array();
+		}
+		$c = &$c[$k];
+	}
 }
 
 register_shutdown_function('pfSense_clear_globals');

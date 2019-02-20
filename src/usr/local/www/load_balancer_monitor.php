@@ -3,7 +3,7 @@
  * load_balancer_monitor.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2005-2008 Bill Marquette <bill.marquette@gmail.com>
  * All rights reserved.
  *
@@ -30,9 +30,7 @@
 require_once("guiconfig.inc");
 require_once("filter.inc");
 
-if (!is_array($config['load_balancer']['monitor_type'])) {
-	$config['load_balancer']['monitor_type'] = array();
-}
+init_config_arr(array('load_balancer', 'monitor_type'));
 $a_monitor = &$config['load_balancer']['monitor_type'];
 
 $pconfig = $_POST;

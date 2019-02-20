@@ -3,7 +3,7 @@
  * system_advanced_firewall.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2008 Shrew Soft Inc
  * All rights reserved.
  *
@@ -498,7 +498,7 @@ $section->addInput(new Form_Input(
 	$pconfig['maximumtableentries'],
 	['placeholder' => pfsense_default_table_entries_size()]
 ))->setHelp('Maximum number of table entries for systems such as aliases, '.
-	'sshlockout, snort, etc, combined.%1$sNote: Leave this blank for the '.
+	'sshguard, snort, etc, combined.%1$sNote: Leave this blank for the '.
 	'default. On this system the default size is: %2$d',
 	'<br/>',
 	pfsense_default_table_entries_size());

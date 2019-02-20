@@ -3,7 +3,7 @@
  * load_balancer_status.widget.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2010 Seth Mos <seth.mos@dds.nl>.
  * Copyright (c) 2005-2008 Bill Marquette
  * All rights reserved.
@@ -33,13 +33,9 @@ require_once("vslb.inc");
 $now = time();
 $year = date("Y");
 
-if (!is_array($config['load_balancer']['lbpool'])) {
-	$config['load_balancer']['lbpool'] = array();
-}
-if (!is_array($config['load_balancer']['virtual_server'])) {
-	$config['load_balancer']['virtual_server'] = array();
-}
+init_config_arr(array('load_balancer', 'virtual_server'));
 $a_vs = &$config['load_balancer']['virtual_server'];
+init_config_arr(array('load_balancer', 'lbpool'));
 $a_pool = &$config['load_balancer']['lbpool'];
 $rdr_a = get_lb_redirects();
 $relay_hosts = get_lb_summary();

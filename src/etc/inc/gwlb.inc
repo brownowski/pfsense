@@ -4,7 +4,7 @@
  *
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2008 Bill Marquette, Seth Mos
- * Copyright (c) 2008-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2008-2019 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -82,7 +82,7 @@ function stop_dpinger($gwname = '') {
 		}
 
 		if (isvalidpid($process['pidfile'])) {
-			killbypid($process['pidfile']);
+			killbypid($process['pidfile'], 3);
 		} else {
 			@unlink($process['pidfile']);
 		}
@@ -545,6 +545,13 @@ function return_gateways_status_text($byname = false, $brief = false) {
 }
 
 function compare_gateway_order_configured($a, $b) {
+	/* XXX WAN always has precedence */
+	if ($a['friendlyiface'] == "wan") {
+		return -1;
+	} elseif ($b['friendlyiface'] == "wan") {
+		return 1;
+	}
+
 	if ($a['attribute'] === $b['attribute']) {
 		if ($a['attribute'] === 'system') {
 			$res = (($a['name'] < $b['name'])) ? -1 : 1;
@@ -588,6 +595,10 @@ function return_gateways_array($disabled = false, $localhost = false, $inactive 
 	/* Process/add all the configured gateways. */
 	if (is_array($config['gateways']) && is_array($config['gateways']['gateway_item'])) {
 		foreach ($config['gateways']['gateway_item'] as $gateway) {
+			if (!is_array($gateway) || empty($gateway)) {
+				continue;
+			}
+			
 			/* Increment it here to do not skip items */
 			$i++;
 			if (isset($gateway['defaultgw'])) {
@@ -1062,7 +1073,7 @@ function fixup_default_gateway($ipprotocol, $gateways_status, $gateways_arr) {
 	} elseif (empty($gwdefault)) {
 		// 'automatic' mode, pick the first one thats 'up' or 'unmonitored' which is always considered up
 		$gateways_arr = order_gateways_as_configured($gateways_arr);
-
+		$fallback = "";
 		foreach($gateways_arr as $gwname => $gwsttng) {
 			if ($gwsttng['ipprotocol'] != $ipprotocol) {
 				continue;
@@ -1072,6 +1083,13 @@ function fixup_default_gateway($ipprotocol, $gateways_status, $gateways_arr) {
 				$set_dfltgwname = $gwname;
 				break;
 			}
+			if (empty($fallback) && $gwsttng['interface'] != 'lo0') {
+				$fallback = $gwname;
+			}
+		}
+		if (empty($set_dfltgwname)) {
+			log_error(sprintf("Gateway, none 'available' for %s, use the first one configured. '%s'", $ipprotocol, $fallback));
+			$set_dfltgwname = $fallback;
 		}
 	} else {
 		// a gwgroup is selected
@@ -1091,10 +1109,12 @@ function fixup_default_gateway($ipprotocol, $gateways_status, $gateways_arr) {
 			$currentdefaultgwip = getcurrentdefaultgatewayip($ipprotocol);
 			$found_current = false;
 			foreach($gwg_members as $gwgroupitem) {
-				if ($gwgroupitem['gwip'] == $currentdefaultgwip) {
+				if (!empty($currentdefaultgwip) && ($gwgroupitem['gwip'] == $currentdefaultgwip)) {
 					$set_dfltgwname = $gwgroupitem['gw'];
 					$found_current = true;
-					log_error("Keep current gateway, its already part of the group members.");
+					if (isset($config['system']['gw-debug'])) {
+						log_error("Keep current gateway, its already part of the group members.");
+					}
 					break;
 				}
 			}
@@ -1244,7 +1264,7 @@ function get_gwgroup_members_inner($group, $gateways_status, $gateways_arr, $vip
 	$tiers_count = count($tiers);
 	if ($tiers_count == 0) {
 		/* Oh dear, we have no members! Engage Plan B */
-		if (!platform_booting()) {
+		if (isset($config['system']['gw-debug']) && (!platform_booting())) {
 			$msg = sprintf(gettext('Gateways status could not be determined, considering all as up/active. (Group: %s)'), $group['name']);
 			log_error($msg);
 			notify_via_growl($msg);
@@ -1428,15 +1448,20 @@ function lookup_gateway_interface_by_name($name) {
 	return (false);
 }
 
-function get_interface_gateway($interface, &$dynamic = false) {
-	global $config, $g;
-
+function get_root_interface($interface) {
 	if (substr($interface, 0, 4) == '_vip') {
 		$interface = get_configured_vip_interface($interface);
 		if (substr($interface, 0, 4) == '_vip') {
 			$interface = get_configured_vip_interface($interface);
 		}
 	}
+	return $interface;
+}
+
+function get_interface_gateway($interface, &$dynamic = false) {
+	global $config, $g;
+	
+	$interface = get_root_interface($interface);
 
 	$gw = NULL;
 	$gwcfg = $config['interfaces'][$interface];
@@ -1469,12 +1494,7 @@ function get_interface_gateway($interface, &$dynamic = false) {
 function get_interface_gateway_v6($interface, &$dynamic = false) {
 	global $config, $g;
 
-	if (substr($interface, 0, 4) == '_vip') {
-		$interface = get_configured_vip_interface($interface);
-		if (substr($interface, 0, 4) == '_vip') {
-			$interface = get_configured_vip_interface($interface);
-		}
-	}
+	$interface = get_root_interface($interface);
 
 	$gw = NULL;
 	$gwcfg = $config['interfaces'][$interface];
@@ -1952,12 +1972,7 @@ function validate_gateway($gateway_settings, $id = "", $parent_ip = "", $parent_
 function save_gateway($gateway_settings, $realid = "") {
 	global $config;
 
-	if (!is_array($config['gateways'])) {
-		$config['gateways'] = array();
-	}
-	if (!is_array($config['gateways']['gateway_item'])) {
-		$config['gateways']['gateway_item'] = array();
-	}
+	init_config_arr(array('gateways', 'gateway_item'));
 	$a_gateway_item = &$config['gateways']['gateway_item'];
 	$reloadif = "";
 	$gateway = array();

@@ -3,7 +3,7 @@
  * status_lb_pool.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2010 Seth Mos <seth.mos@dds.nl>
  * All rights reserved.
  *
@@ -39,10 +39,7 @@ require_once("vslb.inc");
 
 define('COLOR', true);
 
-if (!is_array($config['load_balancer']['lbpool'])) {
-	$config['load_balancer']['lbpool'] = array();
-}
-
+init_config_arr(array('load_balancer', 'lbpool'));
 $a_pool = &$config['load_balancer']['lbpool'];
 
 $lb_logfile = "{$g['varlog_path']}/relayd.log";

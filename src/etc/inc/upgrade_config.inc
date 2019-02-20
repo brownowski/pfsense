@@ -3,7 +3,7 @@
  * upgrade_config.inc
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -89,6 +89,7 @@ function upgrade_010_to_011() {
 	}
 
 	/* convert filter rules */
+	init_config_arr(array('filter', 'rule'));
 	$n = count($config['filter']['rule']);
 	for ($i = 0; $i < $n; $i++) {
 
@@ -133,6 +134,7 @@ function upgrade_010_to_011() {
 	}
 
 	/* convert shaper rules */
+	init_config_arr(array('pfqueueing', 'rule'));
 	$n = count($config['pfqueueing']['rule']);
 	if (is_array($config['pfqueueing']['rule'])) {
 		for ($i = 0; $i < $n; $i++) {
@@ -215,6 +217,7 @@ function upgrade_013_to_014() {
 	global $config;
 	/* convert shaper rules (make pipes) */
 	if (is_array($config['pfqueueing']['rule'])) {
+		init_config_arr(array('pfqueueing', 'pipe'));
 		$config['pfqueueing']['pipe'] = array();
 
 		for ($i = 0; isset($config['pfqueueing']['rule'][$i]); $i++) {
@@ -463,7 +466,7 @@ function upgrade_025_to_026() {
 	$cron_item['month'] = "*";
 	$cron_item['wday'] = "*";
 	$cron_item['who'] = "root";
-	$cron_item['command'] = "/usr/bin/nice -n20 /usr/local/sbin/expiretable -v -t 3600 sshlockout";
+	$cron_item['command'] = "/usr/bin/nice -n20 /usr/local/sbin/expiretable -v -t 3600 sshguard";
 
 	$config['cron']['item'][] = $cron_item;
 
@@ -514,8 +517,9 @@ function upgrade_027_to_028() {
 
 function upgrade_028_to_029() {
 	global $config;
-	$rule_item = array();
+	init_config_arr(array('filter', 'rule'));
 	$a_filter = &$config['filter']['rule'];
+	$rule_item = array();
 	$rule_item['interface'] = "enc0";
 	$rule_item['type'] = "pass";
 	$rule_item['source']['any'] = true;
@@ -901,6 +905,7 @@ function upgrade_045_to_046() {
 	/* Upgrade load balancer from slb to relayd */
 	if (is_array($config['load_balancer']['virtual_server']) && count($config['load_balancer']['virtual_server'])) {
 		$vs_a = &$config['load_balancer']['virtual_server'];
+		init_config_arr(array('load_balancer', 'lbpool'));
 		$pool_a = &$config['load_balancer']['lbpool'];
 		$pools = array();
 		/* Index pools by name */
@@ -1970,11 +1975,8 @@ function upgrade_053_to_054() {
 		$gateway_group_arr = array();
 		$gateways = return_gateways_array();
 		$group_name_changes = array();
-		if (!is_array($config['gateways']['gateway_item'])) {
-			$config['gateways']['gateway_item'] = array();
-		}
-
-		$a_gateways =& $config['gateways']['gateway_item'];
+		init_config_arr(array('gateways', 'gateway_item'));
+		$a_gateways = &$config['gateways']['gateway_item'];
 		foreach ($lbpool_arr as $lbpool) {
 			if ($lbpool['type'] == "gateway") {
 				// Gateway Groups have to have valid names in pf, old lb pools did not. Clean them up.
@@ -2406,9 +2408,11 @@ function upgrade_062_to_063() {
 function upgrade_063_to_064() {
 	global $config;
 	$j = 0;
+	init_config_arr(array('ppps', 'ppp'));
+	init_config_arr(array('interfaces'));
 	$ifcfg = &$config['interfaces'];
 
-	if (is_array($config['ppps']['ppp']) && count($config['ppps']['ppp'])) {
+	if (count($config['ppps']['ppp'])) {
 		foreach ($config['ppps']['ppp'] as $pppid => $ppp) {
 			$config['ppps']['ppp'][$pppid]['if'] = "ppp".$j;
 			$config['ppps']['ppp'][$pppid]['ptpid'] = $j;
@@ -2426,9 +2430,6 @@ function upgrade_063_to_064() {
 		}
 	}
 
-	if (!is_array($config['ppps']['ppp'])) {
-		$config['ppps']['ppp'] = array();
-	}
 	$a_ppps = &$config['ppps']['ppp'];
 
 	foreach ($ifcfg as $ifname => $ifinfo) {
@@ -2514,7 +2515,8 @@ function upgrade_064_to_065() {
 function upgrade_065_to_066() {
 	global $config;
 
-	$dhcrelaycfg =& $config['dhcrelay'];
+	init_config_arr(array('dhcrelay'));
+	$dhcrelaycfg = &$config['dhcrelay'];
 
 	if (is_array($dhcrelaycfg)) {
 		$dhcrelayifs = array();
@@ -3179,7 +3181,7 @@ function upgrade_090_to_091() {
 function upgrade_091_to_092() {
 	global $config;
 
-	if (is_array($config['nat']['advancedoutbound']) && is_array($config['nat']['advancedoutbound']['rule'])) {
+	if (is_array($config['nat']['advancedoutbound']['rule'])) {
 		$nat_rules = &$config['nat']['advancedoutbound']['rule'];
 		for ($i = 0; isset($nat_rules[$i]); $i++) {
 			if (empty($nat_rules[$i]['interface'])) {
@@ -3742,11 +3744,8 @@ function upgrade_117_to_118() {
 		unset($config['system']['cert']);
 	}
 
-	if (!isset($config['ipsec']['phase1'])) {
-		return;
-	}
-
-	$a_phase1 =& $config['ipsec']['phase1'];
+	init_config_arr(array('ipsec', 'phase1'));
+	$a_phase1 = &$config['ipsec']['phase1'];
 
 	foreach ($a_phase1 as &$ph1_entry) {
 		// update asn1dn strings from racoon's format to strongswan's
@@ -3769,7 +3768,8 @@ function upgrade_118_to_119() {
 	}
 
 	// change peerid_type to 'any' for EAP types to retain previous behavior of omitting rightid
-	$a_phase1 =& $config['ipsec']['phase1'];
+	init_config_arr(array('ipsec', 'phase1'));
+	$a_phase1 = &$config['ipsec']['phase1'];
 
 	foreach ($a_phase1 as &$ph1_entry) {
 		if (strstr($ph1_entry['authentication_method'], 'eap')) {
@@ -3803,7 +3803,7 @@ function upgrade_120_to_121() {
 		return;
 	}
 
-	$miniupnpd =& $config['installedpackages']['miniupnpd']['config'][0];
+	$miniupnpd = &$config['installedpackages']['miniupnpd']['config'][0];
 
 	$miniupnpd['row'] = array();
 
@@ -3834,7 +3834,7 @@ function upgrade_122_to_123() {
 
 	// Cleanup firewall rules
 	if (isset($config['filter']['rule']) && is_array($config['filter']['rule'])) {
-		$rules =& $config['filter']['rule'];
+		$rules = &$config['filter']['rule'];
 		$last_rule = count($rules) - 1;
 		// Process in reverse order to be able to unset items
 		for ($i = $last_rule; $i >= 0; $i--) {
@@ -3855,7 +3855,7 @@ function upgrade_122_to_123() {
 
 	// Cleanup 1:1 NAT rules
 	if (isset($config['nat']['onetoone']) && is_array($config['nat']['onetoone'])) {
-		$onetoone =& $config['nat']['onetoone'];
+		$onetoone = &$config['nat']['onetoone'];
 		$last_rule = count($onetoone) - 1;
 		// Process in reverse order to be able to unset items
 		for ($i = $last_rule; $i >= 0; $i--) {
@@ -3876,7 +3876,7 @@ function upgrade_122_to_123() {
 
 	// Cleanup npt NAT rules
 	if (isset($config['nat']['npt']) && is_array($config['nat']['npt'])) {
-		$npt =& $config['nat']['npt'];
+		$npt = &$config['nat']['npt'];
 		$last_rule = count($npt) - 1;
 		// Process in reverse order to be able to unset items
 		for ($i = $last_rule; $i >= 0; $i--) {
@@ -3889,7 +3889,7 @@ function upgrade_122_to_123() {
 
 	// Cleanup Port-forward NAT rules
 	if (isset($config['nat']['rule']) && is_array($config['nat']['rule'])) {
-		$nat_rules =& $config['nat']['rule'];
+		$nat_rules = &$config['nat']['rule'];
 		$last_rule = count($nat_rules) - 1;
 		// Process in reverse order to be able to unset items
 		for ($i = $last_rule; $i >= 0; $i--) {
@@ -3910,7 +3910,7 @@ function upgrade_122_to_123() {
 
 	// Cleanup Port-forward NAT rules
 	if (isset($config['nat']['outbound']['rule']) && is_array($config['nat']['outbound']['rule'])) {
-		$out_rules =& $config['nat']['outbound']['rule'];
+		$out_rules = &$config['nat']['outbound']['rule'];
 		$last_rule = count($out_rules) - 1;
 		// Process in reverse order to be able to unset items
 		for ($i = $last_rule; $i >= 0; $i--) {
@@ -4378,12 +4378,7 @@ function upgrade_141_to_142() {
 	global $config;
 	/* Convert Namecheap type DynDNS entries to the new split hostname and domain format */
 
-	if (!is_array($config['dyndnses'])) {
-		$config['dyndnses'] = array();
-	}
-	if (!is_array($config['dyndnses']['dyndns'])) {
-		$config['dyndnses']['dyndns'] = array();
-	}
+	init_config_arr(array('dyndnses', 'dyndns'));
 	$a_dyndns = &$config['dyndnses']['dyndns'];
 
 	foreach ($a_dyndns as &$dyndns) {
@@ -4950,12 +4945,7 @@ function upgrade_156_to_157() {
 	global $config;
 	/* Convert Cloudflare and GratisDNS type DynDNS entries to the new split hostname and domain format */
 
-	if (!is_array($config['dyndnses'])) {
-		$config['dyndnses'] = array();
-	}
-	if (!is_array($config['dyndnses']['dyndns'])) {
-		$config['dyndnses']['dyndns'] = array();
-	}
+	init_config_arr(array('dyndnses', 'dyndns'));
 	$a_dyndns = &$config['dyndnses']['dyndns'];
 
 	foreach ($a_dyndns as &$dyndns) {
@@ -4983,12 +4973,7 @@ function upgrade_157_to_158() {
 	global $config;
 	/* Convert Dynamic DNS passwords to base64 encoding. Redmine #6688 */
 
-	if (!is_array($config['dyndnses'])) {
-		$config['dyndnses'] = array();
-	}
-	if (!is_array($config['dyndnses']['dyndns'])) {
-		$config['dyndnses']['dyndns'] = array();
-	}
+	init_config_arr(array('dyndnses', 'dyndns'));
 	$a_dyndns = &$config['dyndnses']['dyndns'];
 
 	foreach ($a_dyndns as &$dyndns) {
@@ -5342,6 +5327,12 @@ function upgrade_168_to_169() {
 	unset($config['cron']['rc_update_pkg_metadata']);
 
 	$command = '/usr/bin/nice -n20 /etc/rc.update_pkg_metadata';
+	if (!is_array($config['cron'])) {
+		$config['cron'] = array();
+	}
+	if (!is_array($config['cron']['item'])) {
+		$config['cron']['item'] = array();
+	}
 	if (is_array($config['cron']['item'])) {
 		foreach ($config['cron']['item'] as $entry) {
 			if ($entry['command'] == $command) {
@@ -5483,9 +5474,13 @@ function upgrade_173_to_174() {
  */
 function upgrade_174_to_175() {
 	global $config;
-	if (is_array($config['ipsec']['phase1'])) {
+	init_config_arr(array('ipsec', 'phase1'));
+	if (count($config['ipsec']['phase1'])) {
 		$a_phase1 = &$config['ipsec']['phase1'];
 		foreach($a_phase1 as &$phase1) {
+			if (empty($phase1)) {
+				continue;
+			}
 			$item = array();
 			$item['encryption-algorithm'] = $phase1['encryption-algorithm'];
 			$item['hash-algorithm'] = $phase1['hash-algorithm'];
@@ -5645,7 +5640,7 @@ function upgrade_181_to_182() {
 				}
 			}
 		}
-		if (count($newgroup4['item']) > 0) {
+		if (is_array($newgroup4['item']) && count($newgroup4['item']) > 0) {
 			$newname = "Default_Gateway_Group_ipv4";
 			if (gateway_or_gwgroup_exists($newname)) { //make sure we create a new name
 				$id = 2;
@@ -5660,7 +5655,7 @@ function upgrade_181_to_182() {
 			$config['gateways']['gateway_group'][] = $newgroup4;
 			$config['gateways']['defaultgw4'] = $newname;
 		}
-		if (count($newgroup6['item']) > 0) {
+		if (is_array($newgroup6['item']) && count($newgroup6['item']) > 0) {
 			$newname = "Default_Gateway_Group_ipv6";
 			if (gateway_or_gwgroup_exists($newname)) { //make sure we create a new name
 				$id = 2;
@@ -5749,10 +5744,7 @@ function upgrade_184_to_185() {
 	if (is_array($config['installedpackages']['autoconfigbackup']['config'][0])) {
 		$acbpkg = &$config['installedpackages']['autoconfigbackup']['config'][0];
 
-		if (!is_array($config['system']['acb'])) {
-			$config['system']['acb'] = array();
-		}
-
+		init_config_arr(array('system', 'acb'));
 		$acb = &$config['system']['acb'];
 		$acb['enable'] = ($acbpkg['enable_acb'] != 'disabled') ?  'yes':'no';
 		$acb['gold_encryption_password'] = $acbpkg['crypto_password'];
@@ -5767,6 +5759,178 @@ function upgrade_184_to_185() {
 		$acb['gold_username'] = $acbpkg['username'];
 
 		unset($config['installedpackages']['autoconfigbackup']['config']);
+	}
+}
+
+function upgrade_185_to_186() {
+	global $config;
+
+	/* FEC LAGG is deprecated, replace with loadbalance */
+	if (!function_exists("file_notice")) {
+		require_once("notices.inc");
+	}
+	if (is_array($config['laggs']) &&
+	    is_array($config['laggs']['lagg'])) {
+		foreach ($config['laggs']['lagg'] as &$lagg) {
+			if ($lagg['proto'] == 'fec') {
+				$lagg['proto'] = 'failover';
+				file_notice("Interfaces", sprintf(gettext("The FEC LAGG protocol is deprecated. The %s LAGG interface has been set to failover."), $lagg['laggif']));
+			}
+		}
+	}
+}
+
+function generate_usermanager_radius_config($cpzone, $counter, $protocol, $ip, $key, $port, $radiussrcip_attribute, $is_accounting=false, $accounting_port=false) {
+	global $config;
+	$pconfig = array();
+	
+	if (!is_array($config['system']['authserver'])) {
+		$config['system']['authserver'] = array();
+	}
+	
+	$pconfig['name'] = "Auto generated from Captive Portal {$cpzone}";
+	if ($counter != 1) {
+		$pconfig['name'] .= " {$counter}";
+	}
+	$pconfig['radius_srvcs'] = "auth";
+	$pconfig['type'] = 'radius';
+	$pconfig['radius_protocol'] = $protocol;
+	$pconfig['host'] = $ip;
+	$pconfig['radius_secret'] = $key;
+	$pconfig['radius_timeout'] = 3;
+	$pconfig['radius_auth_port'] = $port;
+	$pconfig['radius_nasip_attribute'] = $radiussrcip_attribute;
+	
+	if($is_accounting) {
+		$pconfig['radius_srvcs'] = "both";
+		$pconfig['radius_acct_port'] = $accounting_port;
+	}
+	
+	$config['system']['authserver'][] = $pconfig;
+	
+	return 'radius - '.$pconfig['name'];
+}
+
+function upgrade_186_to_187() {
+	global $config;
+	global $g;
+
+	if (is_array($config['captiveportal'])) {
+		foreach ($config['captiveportal'] as $cpzone => $cp) {
+			// we flush any existing sqlite3 db. 
+			// It will be automatically re-generated on next captiveportal_readdb()/captiveportal_writedb()
+			$db_path = "{$g['vardb_path']}/captiveportal{$cpzone}.db";
+			unlink_if_exists($db_path);
+		
+			if ($cp['auth_method'] === 'radius') { // Radius Auth	
+				$auth_servers = array();
+				$auth_servers2 = array();
+				$radiuscounter = 1;
+				
+				if (intval($cp['radiusport']) == 0) {
+					$cp['radiusport'] = 1812;
+				}
+				if (intval($cp['radiusacctport']) == 0) {
+					$cp['radiusacctport'] = 1813;
+				}
+				if (!isset($cp['radiussrcip_attribute'])) {
+					$cp['radiussrcip_attribute'] = 'wan';
+				}
+				$auth_servers[] = generate_usermanager_radius_config($cpzone, $radiuscounter, $cp['radius_protocol'], $cp['radiusip'], $cp['radiuskey'], $cp['radiusport'], $cp['radiussrcip_attribute'], isset($cp['radacct_enable']), $cp['radiusacctport']);
+				  
+				if (!empty($cp['radiusip2'])) {
+					$radiuscounter++;
+					if (intval($cp['radiusport2']) == 0) {
+						$cp['radiusport2'] = 1812;
+					}		
+					$auth_servers[] = generate_usermanager_radius_config($cpzone, $radiuscounter, $cp['radius_protocol'], $cp['radiusip2'], $cp['radiuskey2'], $cp['radiusport2'], $cp['radiussrcip_attribute'], false, 0); 
+				}
+				if (!empty($cp['radiusip3'])) {
+					$radiuscounter++;
+					if (intval($cp['radiusport3']) == 0) {
+						$cp['radiusport3'] = 1812;
+					}
+					$auth_servers2[] = generate_usermanager_radius_config($cpzone, $radiuscounter, $cp['radius_protocol'], $cp['radiusip3'], $cp['radiuskey3'], $cp['radiusport3'], $cp['radiussrcip_attribute'], false, 0); 
+				}
+				if (!empty($cp['radiusip4'])) {
+					$radiuscounter++;
+					if (intval($cp['radiusport4']) == 0) {
+						$cp['radiusport4'] = 1812;
+					}
+					$auth_servers2[] = generate_usermanager_radius_config($cpzone, $radiuscounter, $cp['radius_protocol'], $cp['radiusip4'], $cp['radiuskey4'], $cp['radiusport4'], $cp['radiussrcip_attribute'], false, 0); 
+				}
+				
+				$cp['auth_method'] = 'authserver';
+				$cp['auth_server'] = implode(",", $auth_servers);
+				$cp['auth_server2'] = implode(",", $auth_servers2);
+
+				if (isset($cp['radmac_enable'])) { // RadMac
+					$cp['auth_method'] = 'radmac';
+				}
+				if (isset($cp['radacct_enable'])) { // If accounting was enabled : we select the primary radius server for accounting
+					$cp['radacct_server'] = "Auto generated from Captive Portal {$cpzone}";
+					if ($cp['reauthenticateacct'] === "") {
+						$cp['reauthenticateacct'] = 'none';
+					}
+				}
+			} elseif ($cp['auth_method'] === 'local') { // Local Auth
+				$cp['auth_method'] = 'authserver';
+				$cp['auth_server'] = "Local Auth - Local Database";
+			} 
+			// we don't need to update anything when "none" auth method is selected
+			
+			$config['captiveportal'][$cpzone] = $cp;
+		}
+	}
+}
+
+function upgrade_187_to_188() {
+	global $config;
+
+	$old_cmd = "/usr/bin/nice -n20 /usr/local/sbin/expiretable -v -t 3600 sshlockout";
+	$new_cmd = "/usr/bin/nice -n20 /usr/local/sbin/expiretable -v -t 3600 sshguard";
+	if (!is_array($config['cron'])) {
+		$config['cron'] = array();
+	}
+	if (!is_array($config['cron']['item'])) {
+		$config['cron']['item'] = array();
+	}
+	if (is_array($config['cron']['item'])) {
+		foreach ($config['cron']['item'] as $idx => $entry) {
+			if ($entry['command'] == $old_cmd) {
+				$config['cron']['item'][$idx]['command'] = $new_cmd;
+				break;
+			}
+		}
+	}
+}
+
+function upgrade_188_to_189() {
+	global $config;
+
+	/* Migrate ssh setting to new location */
+	if (isset($config['system']['enablesshd'])) {
+		init_config_arr(array('system', 'ssh'));
+		$config['system']['ssh']['enable'] = "enabled";
+		unset($config['system']['enablesshd']);
+	}
+	/* Remove accidentally duplicated ssh config
+	 * See https://redmine.pfsense.org/issues/8974 */
+	if (isset($config['system']['sshd'])) {
+		unset($config['system']['sshd']);
+	}
+}
+
+/* Older pre-existing IPsec P1 entries may not have had the protocol explicitly
+ * defined. Fill in the default value of 'inet'.
+ * https://redmine.pfsense.org/issues/9207 */
+function upgrade_189_to_190() {
+	global $config;
+	init_config_arr(array('ipsec', 'phase1'));
+	foreach ($config['ipsec']['phase1'] as & $ph1ent) {
+		if (empty($ph1ent['protocol'])) {
+			$ph1ent['protocol'] = 'inet';
+		}
 	}
 }
 

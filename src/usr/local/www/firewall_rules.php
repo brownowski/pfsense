@@ -3,7 +3,7 @@
  * firewall_rules.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally based on m0n0wall (http://m0n0.ch/wall)
@@ -108,14 +108,7 @@ function delete_nat_association($id) {
 	}
 }
 
-if (!is_array($config['filter'])) {
-	$config['filter'] = array();
-}
-
-if (!is_array($config['filter']['rule'])) {
-	$config['filter']['rule'] = array();
-}
-
+init_config_arr(array('filter', 'rule'));
 filter_rules_sort();
 $a_filter = &$config['filter']['rule'];
 
@@ -150,6 +143,7 @@ if ($_POST['act'] == "del") {
 		unset($a_filter[$_POST['id']]);
 
 		// Update the separators
+		init_config_arr(array('filter', 'separator', strtolower($if)));
 		$a_separators = &$config['filter']['separator'][strtolower($if)];
 		$ridx = ifridx($if, $_POST['id']);	// get rule index within interface
 		$mvnrows = -1;
@@ -174,6 +168,7 @@ if (isset($_POST['del_x'])) {
 	$deleted = false;
 
 	if (is_array($_POST['rule']) && count($_POST['rule'])) {
+		init_config_arr(array('filter', 'separator', strtolower($if)));
 		$a_separators = &$config['filter']['separator'][strtolower($if)];
 		$num_deleted = 0;
 
@@ -328,6 +323,12 @@ if (isset($config['interfaces'][$if]['blockbogons'])) {
 	$showblockbogons = true;
 }
 
+if (isset($config['system']['webgui']['roworderdragging'])) {
+	$rules_header_text = gettext("Rules");
+} else {
+	$rules_header_text = gettext("Rules (Drag to Change Order)");
+}
+
 /* Load the counter data of each pf rule. */
 $rulescnt = pfSense_get_pf_rules();
 
@@ -347,12 +348,12 @@ $columns_in_table = 13;
 <form method="post">
 	<input name="if" id="if" type="hidden" value="<?=$if?>" />
 	<div class="panel panel-default">
-		<div class="panel-heading"><h2 class="panel-title"><?=gettext("Rules (Drag to Change Order)")?></h2></div>
+		<div class="panel-heading"><h2 class="panel-title"><?=$rules_header_text?></h2></div>
 		<div id="mainarea" class="table-responsive panel-body">
 			<table id="ruletable" class="table table-hover table-striped table-condensed" style="overflow-x: 'visible'">
 				<thead>
 					<tr>
-						<th><!-- checkbox --></th>
+						<th><input type="checkbox" id="selectAll" name="selectAll" /></th>
 						<th><!-- status icons --></th>
 						<th><?=gettext("States")?></th>
 						<th><?=gettext("Protocol")?></th>
@@ -499,14 +500,8 @@ foreach ($a_filter as $filteri => $filterent):
 			pprint_port($filterent['destination']['port'])
 		);
 
-		if (!is_array($config['schedules'])) {
-			$config['schedules'] = array();
-		}
-
-		if (!is_array($config['schedules']['schedule'])) {
-			$config['schedules']['schedule'] = array();
-		}
 		//build Schedule popup box
+		init_config_arr(array('schedules', 'schedule'));
 		$a_schedules = &$config['schedules']['schedule'];
 		$schedule_span_begin = "";
 		$schedule_span_end = "";
@@ -983,6 +978,13 @@ events.push(function() {
 		} else {
 			$('[id^=Xmove_]').attr("title", "<?=$XmoveTitle?>");
 		}
+	});
+
+	$('#selectAll').click(function() {
+		var checkedStatus = this.checked;
+		$('#ruletable tbody tr').find('td:first :checkbox').each(function() {
+		$(this).prop('checked', checkedStatus);
+		});
 	});
 });
 //]]>

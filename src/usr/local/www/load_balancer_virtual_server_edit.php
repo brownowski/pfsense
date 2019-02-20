@@ -3,7 +3,7 @@
  * load_balancer_virtual_server_edit.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2005-2008 Bill Marquette <bill.marquette@gmail.com>
  * All rights reserved.
  *
@@ -35,15 +35,11 @@ if (isset($_POST['referer'])) {
 	$referer = (isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '/load_balancer_virtual_server.php');
 }
 
-if (!is_array($config['load_balancer']['virtual_server'])) {
-	$config['load_balancer']['virtual_server'] = array();
-}
-
-if (!is_array($config['load_balancer']['lbpool'])) {
-	$config['load_balancer']['lbpool'] = array();
-}
-
+init_config_arr(array('load_balancer', 'virtual_server'));
 $a_vs = &$config['load_balancer']['virtual_server'];
+init_config_arr(array('load_balancer', 'lbpool'));
+$a_pool = &$config['load_balancer']['lbpool'];
+
 $id = $_REQUEST['id'];
 
 if (isset($id) && $a_vs[$id]) {

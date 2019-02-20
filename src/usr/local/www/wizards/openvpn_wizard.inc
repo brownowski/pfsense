@@ -3,7 +3,7 @@
  * openvpn_wizard.inc
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,21 +26,14 @@ require_once("openvpn.inc");
 require_once("util.inc");
 
 // Load valid country codes
-$dn_cc = array();
-if (file_exists("/etc/ca_countries")) {
-	$dn_cc_file=file("/etc/ca_countries");
-	$dn_cc[''] = gettext("None");
-	foreach ($dn_cc_file as $line) {
-		if (preg_match('/^(\S*)\s(.*)$/', $line, $matches)) {
-			$dn_cc[$matches[1]] = $matches[1];
-		}
-	}
-}
+$dn_cc = get_cert_country_codes();
 
 function step1_stepsubmitbeforesave() {
 	global $stepid, $config;
 	if (($_POST['authtype'] != NULL) && ($_POST['authtype'] != $config['ovpnserver']['step1']['type'])) {
-		unset($config['ovpnserver']['step2']);
+		if (isset($config['ovpnserver']['step2'])) {
+			unset($config['ovpnserver']['step2']);
+		}
 	}
 }
 
@@ -54,14 +47,16 @@ function step1_submitphpaction() {
 	} else if ($_POST['authtype'] == "radius") {
 		$stepid = 2;
 		$config['ovpnserver']['step1']['type'] = "radius";
-		unset($config['ovpnserver']['step1']['uselist']);
+		if (isset($config['ovpnserver']['step1']['uselist'])) {
+			unset($config['ovpnserver']['step1']['uselist']);
+		}
 	}
 }
 
 function step2_stepbeforeformdisplay() {
 	global $pkg, $stepid;
 
-	$fields =& $pkg['step'][1]['fields']['field'];
+	$fields = &$pkg['step'][1]['fields']['field'];
 
 	$found = false;
 	$authlist = auth_get_authserver_list();
@@ -123,7 +118,7 @@ function step3_submitphpaction() {
 function step4_stepbeforeformdisplay() {
 	global $pkg, $stepid;
 
-	$fields =& $pkg['step'][3]['fields']['field'];
+	$fields = &$pkg['step'][3]['fields']['field'];
 
 	$found = false;
 	$authlist = auth_get_authserver_list();
@@ -189,7 +184,9 @@ function step6_submitphpaction() {
 
 	if (isset($_POST['next'])) {
 		$_POST['uselist'] = "";
-		unset($config['ovpnserver']['step6']['uselist']);
+		if (isset($config['ovpnserver']['step6']['uselist'])) {
+			unset($config['ovpnserver']['step6']['uselist']);
+		}
 		$stepid++;
 	} else {
 		$config['ovpnserver']['step6']['uselist'] = "on";
@@ -243,7 +240,9 @@ function step8_submitphpaction() {
 
 	if (isset($_POST['next'])) {
 		$_POST['uselist'] = "";
-		unset($config['ovpnserver']['step9']['uselist']);
+		if (isset($config['ovpnserver']['step9']['uselist'])) {
+			unset($config['ovpnserver']['step9']['uselist']);
+		}
 		$stepid++;
 	} else {
 		$config['ovpnserver']['step9']['uselist'] = "on";
@@ -263,13 +262,13 @@ function step9_stepbeforeformdisplay() {
 		$org = $pconfig['step6']['organization'];
 	} else {
 		$ca = lookup_ca($pconfig['step6']['authcertca']);
-		$cavl = cert_get_subject_array($ca['crt']);
-		$country = $cavl[0]['v'];
-		$state = $cavl[1]['v'];
-		$city = $cavl[2]['v'];
-		$org = $cavl[3]['v'];
+		$cavl = cert_get_subject_hash($ca['crt']);
+		$country = $cavl['C'];
+		$state = $cavl['ST'];
+		$city = $cavl['L'];
+		$org = $cavl['O'];
 	}
-	$fields =& $pkg['step'][$stepid]['fields']['field'];
+	$fields = &$pkg['step'][$stepid]['fields']['field'];
 
 	foreach ($fields as $idx => $field) {
 		switch ($field['name']) {

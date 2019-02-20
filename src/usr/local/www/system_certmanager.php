@@ -3,7 +3,7 @@
  * system_certmanager.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2008 Shrew Soft Inc
  * All rights reserved.
  *
@@ -32,8 +32,8 @@ require_once("certs.inc");
 require_once("pfsense-utils.inc");
 
 $cert_methods = array(
-	"import" => gettext("Import an existing Certificate"),
 	"internal" => gettext("Create an internal Certificate"),
+	"import" => gettext("Import an existing Certificate"),
 	"external" => gettext("Create a Certificate Signing Request"),
 	"sign" => gettext("Sign a Certificate Signing Request")
 );
@@ -52,9 +52,7 @@ if (isset($_REQUEST['userid']) && is_numericint($_REQUEST['userid'])) {
 
 if (isset($userid)) {
 	$cert_methods["existing"] = gettext("Choose an existing certificate");
-	if (!is_array($config['system']['user'])) {
-		$config['system']['user'] = array();
-	}
+	init_config_arr(array('system', 'user'));
 	$a_user =& $config['system']['user'];
 }
 
@@ -62,17 +60,11 @@ if (isset($_REQUEST['id']) && is_numericint($_REQUEST['id'])) {
 	$id = $_REQUEST['id'];
 }
 
-if (!is_array($config['ca'])) {
-	$config['ca'] = array();
-}
+init_config_arr(array('ca'));
+$a_ca = &$config['ca'];
 
-$a_ca =& $config['ca'];
-
-if (!is_array($config['cert'])) {
-	$config['cert'] = array();
-}
-
-$a_cert =& $config['cert'];
+init_config_arr(array('cert'));
+$a_cert = &$config['cert'];
 
 $internal_ca_count = 0;
 foreach ($a_ca as $ca) {
@@ -339,21 +331,30 @@ if ($_POST['save']) {
 				array_push($input_errors, "The field 'Descriptive Name' contains invalid characters.");
 			}
 
-			if (($pconfig['method'] != "external") && isset($_POST["keylen"]) && !in_array($_POST["keylen"], $cert_keylens)) {
-				array_push($input_errors, gettext("Please select a valid Key Length."));
-			}
-			if (($pconfig['method'] != "external") && !in_array($_POST["digest_alg"], $openssl_digest_algs)) {
-				array_push($input_errors, gettext("Please select a valid Digest Algorithm."));
-			}
-
-			if (($pconfig['method'] == "external") && isset($_POST["csr_keylen"]) && !in_array($_POST["csr_keylen"], $cert_keylens)) {
-				array_push($input_errors, gettext("Please select a valid Key Length."));
-			}
-			if (($pconfig['method'] == "external") && !in_array($_POST["csr_digest_alg"], $openssl_digest_algs)) {
-				array_push($input_errors, gettext("Please select a valid Digest Algorithm."));
-			}
-			if (($pconfig['method'] == "sign") && !in_array($_POST["csrsign_digest_alg"], $openssl_digest_algs)) {
-				array_push($input_errors, gettext("Please select a valid Digest Algorithm."));
+			switch ($pconfig['method']) {
+				case "internal":
+					if (isset($_POST["keylen"]) && !in_array($_POST["keylen"], $cert_keylens)) {
+						array_push($input_errors, gettext("Please select a valid Key Length."));
+					}
+					if (!in_array($_POST["digest_alg"], $openssl_digest_algs)) {
+						array_push($input_errors, gettext("Please select a valid Digest Algorithm."));
+					}
+					break;
+				case "external":
+					if (isset($_POST["csr_keylen"]) && !in_array($_POST["csr_keylen"], $cert_keylens)) {
+						array_push($input_errors, gettext("Please select a valid Key Length."));
+					}
+					if (!in_array($_POST["csr_digest_alg"], $openssl_digest_algs)) {
+						array_push($input_errors, gettext("Please select a valid Digest Algorithm."));
+					}
+					break;
+				case "sign":
+					if (!in_array($_POST["csrsign_digest_alg"], $openssl_digest_algs)) {
+						array_push($input_errors, gettext("Please select a valid Digest Algorithm."));
+					}
+					break;
+				default:
+					break;
 			}
 		}
 
@@ -525,7 +526,7 @@ if ($_POST['save']) {
 				write_config();
 			}
 
-			if ($userid && !$input_errors) {
+			if ((isset($userid) && is_numeric($userid)) && !$input_errors) {
 				post_redirect("system_usermanager.php", array('act' => 'edit', 'userid' => $userid));
 				exit;
 			}
@@ -608,18 +609,6 @@ $tab_array[] = array(gettext("CAs"), false, "system_camanager.php");
 $tab_array[] = array(gettext("Certificates"), true, "system_certmanager.php");
 $tab_array[] = array(gettext("Certificate Revocation"), false, "system_crlmanager.php");
 display_top_tabs($tab_array);
-
-// Load valid country codes
-$dn_cc = array();
-if (file_exists("/etc/ca_countries")) {
-	$dn_cc_file=file("/etc/ca_countries");
-	$dn_cc[''] = gettext("None");
-	foreach ($dn_cc_file as $line) {
-		if (preg_match('/^(\S*)\s(.*)$/', $line, $matches)) {
-			$dn_cc[$matches[1]] = $matches[1];
-		}
-	}
-}
 
 if ($act == "new" || (($_POST['save'] == gettext("Save")) && $input_errors)) {
 	$form = new Form();
@@ -819,7 +808,7 @@ if ($act == "new" || (($_POST['save'] == gettext("Save")) && $input_errors)) {
 		'dn_country',
 		'Country Code',
 		$pconfig['dn_country'],
-		$dn_cc
+		get_cert_country_codes()
 	));
 
 	$section->addInput(new Form_Input(
@@ -890,7 +879,7 @@ if ($act == "new" || (($_POST['save'] == gettext("Save")) && $input_errors)) {
 		'csr_dn_country',
 		'Country Code',
 		$pconfig['csr_dn_country'],
-		$dn_cc
+		get_cert_country_codes()
 	));
 
 	$section->addInput(new Form_Input(
@@ -931,7 +920,10 @@ if ($act == "new" || (($_POST['save'] == gettext("Save")) && $input_errors)) {
 
 	$existCerts = array();
 
-	foreach ($config['cert'] as $cert)	{
+	foreach ($config['cert'] as $cert) {
+		if (!is_array($cert) || empty($cert)) {
+			continue;
+		}
 		if (is_array($config['system']['user'][$userid]['cert'])) { // Could be MIA!
 			if (isset($userid) && in_array($cert['refid'], $config['system']['user'][$userid]['cert'])) {
 				continue;
@@ -1128,6 +1120,9 @@ $pluginparams['event'] = 'used_certificates';
 $certificates_used_by_packages = pkg_call_plugins('plugin_certificates', $pluginparams);
 $i = 0;
 foreach ($a_cert as $i => $cert):
+	if (!is_array($cert) || empty($cert)) {
+		continue;
+	}
 	$name = htmlspecialchars($cert['descr']);
 	$sans = array();
 	if ($cert['crt']) {
@@ -1304,14 +1299,14 @@ events.push(function() {
 					continue;
 				}
 
-				$subject = cert_get_subject_array($ca['crt']);
+				$subject = cert_get_subject_hash($ca['crt']);
 ?>
 				case "<?=$ca['refid'];?>":
-					$('#dn_country').val(<?=json_encode(cert_escape_x509_chars($subject[0]['v'], true));?>);
-					$('#dn_state').val(<?=json_encode(cert_escape_x509_chars($subject[1]['v'], true));?>);
-					$('#dn_city').val(<?=json_encode(cert_escape_x509_chars($subject[2]['v'], true));?>);
-					$('#dn_organization').val(<?=json_encode(cert_escape_x509_chars($subject[3]['v'], true));?>);
-					$('#dn_organizationalunit').val(<?=json_encode(cert_escape_x509_chars($subject[6]['v'], true));?>);
+					$('#dn_country').val(<?=json_encode(cert_escape_x509_chars($subject['C'], true));?>);
+					$('#dn_state').val(<?=json_encode(cert_escape_x509_chars($subject['ST'], true));?>);
+					$('#dn_city').val(<?=json_encode(cert_escape_x509_chars($subject['L'], true));?>);
+					$('#dn_organization').val(<?=json_encode(cert_escape_x509_chars($subject['O'], true));?>);
+					$('#dn_organizationalunit').val(<?=json_encode(cert_escape_x509_chars($subject['OU'], true));?>);
 					break;
 <?php
 			endforeach;

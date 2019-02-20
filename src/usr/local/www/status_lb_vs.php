@@ -3,7 +3,7 @@
  * status_lb_vs.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2010 Seth Mos <seth.mos@dds.nl>
  * All rights reserved.
  *
@@ -32,14 +32,11 @@ define('COLOR', true);
 require_once("guiconfig.inc");
 require_once("vslb.inc");
 
-if (!is_array($config['load_balancer']['lbpool'])) {
-	$config['load_balancer']['lbpool'] = array();
-}
-if (!is_array($config['load_balancer']['virtual_server'])) {
-	$config['load_balancer']['virtual_server'] = array();
-}
+init_config_arr(array('load_balancer', 'virtual_server'));
 $a_vs = &$config['load_balancer']['virtual_server'];
+init_config_arr(array('load_balancer', 'lbpool'));
 $a_pool = &$config['load_balancer']['lbpool'];
+
 $rdr_a = get_lb_redirects();
 
 $pgtitle = array(gettext("Status"), gettext("Load Balancer"), gettext("Virtual Servers"));

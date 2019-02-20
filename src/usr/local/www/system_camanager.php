@@ -3,7 +3,7 @@
  * system_camanager.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2008 Shrew Soft Inc
  * All rights reserved.
  *
@@ -32,8 +32,8 @@ require_once("certs.inc");
 require_once("pfsense-utils.inc");
 
 $ca_methods = array(
-	"existing" => gettext("Import an existing Certificate Authority"),
 	"internal" => gettext("Create an internal Certificate Authority"),
+	"existing" => gettext("Import an existing Certificate Authority"),
 	"intermediate" => gettext("Create an intermediate Certificate Authority"));
 
 $ca_keylens = array("1024", "2048", "3072", "4096", "6144", "7680", "8192", "15360", "16384");
@@ -43,23 +43,14 @@ if (isset($_REQUEST['id']) && is_numericint($_REQUEST['id'])) {
 	$id = $_REQUEST['id'];
 }
 
-if (!is_array($config['ca'])) {
-	$config['ca'] = array();
-}
+init_config_arr(array('ca'));
+$a_ca = &$config['ca'];
 
-$a_ca =& $config['ca'];
+init_config_arr(array('cert'));
+$a_cert = &$config['cert'];
 
-if (!is_array($config['cert'])) {
-	$config['cert'] = array();
-}
-
-$a_cert =& $config['cert'];
-
-if (!is_array($config['crl'])) {
-	$config['crl'] = array();
-}
-
-$a_crl =& $config['crl'];
+init_config_arr(array('crl'));
+$a_crl = &$config['crl'];
 
 if ($_REQUEST['act']) {
 	$act = $_REQUEST['act'];
@@ -101,6 +92,7 @@ if ($act == "edit") {
 		pfSenseHeader("system_camanager.php");
 		exit;
 	}
+	$pconfig['method'] = 'existing';
 	$pconfig['descr']  = $a_ca[$id]['descr'];
 	$pconfig['refid']  = $a_ca[$id]['refid'];
 	$pconfig['cert']   = base64_decode($a_ca[$id]['crt']);
@@ -328,18 +320,6 @@ if ($input_errors) {
 
 if ($savemsg) {
 	print_info_box($savemsg, 'success');
-}
-
-// Load valid country codes
-$dn_cc = array();
-if (file_exists("/etc/ca_countries")) {
-	$dn_cc_file=file("/etc/ca_countries");
-	$dn_cc[''] = gettext("None");
-	foreach ($dn_cc_file as $line) {
-		if (preg_match('/^(\S*)\s(.*)$/', $line, $matches)) {
-			$dn_cc[$matches[1]] = $matches[1];
-		}
-	}
 }
 
 $tab_array = array();
@@ -588,7 +568,7 @@ $section->addInput(new Form_Select(
 	'dn_country',
 	'Country Code',
 	$pconfig['dn_country'],
-	$dn_cc
+	get_cert_country_codes()
 ));
 
 $section->addInput(new Form_Input(

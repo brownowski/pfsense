@@ -3,7 +3,7 @@
  * load_balancer_virtual_server.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2005-2008 Bill Marquette <bill.marquette@gmail.com>
  * All rights reserved.
  *
@@ -33,10 +33,7 @@ require_once("filter.inc");
 require_once("shaper.inc");
 require_once("vslb.inc");
 
-if (!is_array($config['load_balancer']['virtual_server'])) {
-	$config['load_balancer']['virtual_server'] = array();
-}
-
+init_config_arr(array('load_balancer', 'virtual_server'));
 $a_vs = &$config['load_balancer']['virtual_server'];
 
 $pconfig = $_POST;

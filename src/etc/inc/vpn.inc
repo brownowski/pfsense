@@ -3,7 +3,7 @@
  * vpn.inc
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2008 Shrew Soft Inc
  * All rights reserved.
  *
@@ -134,6 +134,10 @@ function vpn_ipsec_configure($restart = false) {
 
 	$syscfg = $config['system'];
 	$ipseccfg = $config['ipsec'];
+
+	/* Configure asynchronous crypto. See https://redmine.pfsense.org/issues/8772 */
+	set_sysctl(array('net.inet.ipsec.async_crypto' => (int) (isset($ipseccfg['async_crypto']) && ($ipseccfg['async_crypto'] == "enabled"))));
+
 	if (!ipsec_enabled()) {
 		/* try to stop charon */
 		mwexec("/usr/local/sbin/ipsec stop");
@@ -163,41 +167,23 @@ function vpn_ipsec_configure($restart = false) {
 	$ipsec_vti_cleanup_ifs = array();
 
 	/* needed for config files */
-	if (!is_dir("{$g['varetc_path']}/ipsec")) {
-		mkdir("{$g['varetc_path']}/ipsec");
-	}
-	if (!is_dir("{$g['varetc_path']}/ipsec/ipsec.d")) {
-		mkdir("{$g['varetc_path']}/ipsec/ipsec.d");
-	}
+	safe_mkdir("{$g['varetc_path']}/ipsec");
+	safe_mkdir("{$g['varetc_path']}/ipsec/ipsec.d");
+
 	// delete these paths first to ensure old CAs, certs and CRLs aren't left behind. redmine #5238
 	rmdir_recursive($capath);
 	rmdir_recursive($keypath);
 	rmdir_recursive($crlpath);
 	rmdir_recursive($certpath);
-	if (!is_dir($capath)) {
-		mkdir($capath);
-	}
-	if (!is_dir($keypath)) {
-		mkdir($keypath);
-	}
-	if (!is_dir($crlpath)) {
-		mkdir($crlpath);
-	}
-	if (!is_dir($certpath)) {
-		mkdir($certpath);
-	}
-	if (!is_dir("{$g['varetc_path']}/ipsec/ipsec.d/aacerts")) {
-		mkdir("{$g['varetc_path']}/ipsec/ipsec.d/aacerts");
-	}
-	if (!is_dir("{$g['varetc_path']}/ipsec/ipsec.d/acerts")) {
-		mkdir("{$g['varetc_path']}/ipsec/ipsec.d/acerts");
-	}
-	if (!is_dir("{$g['varetc_path']}/ipsec/ipsec.d/ocspcerts")) {
-		mkdir("{$g['varetc_path']}/ipsec/ipsec.d/ocspcerts");
-	}
-	if (!is_dir("{$g['varetc_path']}/ipsec/ipsec.d/reqs")) {
-		mkdir("{$g['varetc_path']}/ipsec/ipsec.d/reqs");
-	}
+
+	safe_mkdir($capath);
+	safe_mkdir($keypath);
+	safe_mkdir($crlpath);
+	safe_mkdir($certpath);
+	safe_mkdir("{$g['varetc_path']}/ipsec/ipsec.d/aacerts");
+	safe_mkdir("{$g['varetc_path']}/ipsec/ipsec.d/acerts");
+	safe_mkdir("{$g['varetc_path']}/ipsec/ipsec.d/ocspcerts");
+	safe_mkdir("{$g['varetc_path']}/ipsec/ipsec.d/reqs");
 
 	if (!file_exists("/usr/local/etc/ipsec.d") ||
 	    !is_link("/usr/local/etc/ipsec.d")) {
@@ -385,6 +371,12 @@ function vpn_ipsec_configure($restart = false) {
 		unset($ipsecpinghosts);
 	}
 	unset($iflist);
+	/* Build a list of all IPsec interfaces configured on the firewall at the OS level */
+	foreach (get_interface_arr() as $thisif) {
+		if (substr($thisif, 0, 5) == "ipsec") {
+			$ipsec_vti_cleanup_ifs[] = $thisif;
+		}
+	}
 
 	$accept_unencrypted = "";
 	if (isset($config['ipsec']['acceptunencryptedmainmode'])) {
@@ -486,7 +478,7 @@ EOD;
 	$user_sources = explode(',', $config['ipsec']['client']['user_source']);
 	foreach ($user_sources as $user_source) {
 		$auth_server = auth_get_authserver($user_source);
-		$nice_user_source = strtolower(preg_replace('/\s+/', '_', $user_source));
+		$nice_user_source = strtolower(preg_replace('/[\s\.]+/', '_', $user_source));
 		if ($auth_server && $auth_server['type'] === 'radius') {
 			$radius_server_txt .= <<<EOD
 				{$nice_user_source} {
@@ -523,25 +515,7 @@ EOD;
 
 	if (is_array($a_client) && isset($a_client['enable'])) {
 		$strongswan .= "\t\tattr {\n";
-
-		$cfgservers = array();
-		if (!empty($a_client['dns_server1'])) {
-			$cfgservers[] = $a_client['dns_server1'];
-		}
-		if (!empty($a_client['dns_server2'])) {
-			$cfgservers[] = $a_client['dns_server2'];
-		}
-		if (!empty($a_client['dns_server3'])) {
-			$cfgservers[] = $a_client['dns_server3'];
-		}
-		if (!empty($a_client['dns_server4'])) {
-			$cfgservers[] = $a_client['dns_server4'];
-		}
-
-		if (!empty($cfgservers)) {
-			$strongswan .= "\t\t\tdns = " . implode(",", $cfgservers) . "\n";
-		}
-		unset($cfgservers);
+		
 		$cfgservers = array();
 		if (!empty($a_client['wins_server1'])) {
 			$cfgservers[] = $a_client['wins_server1'];
@@ -1023,6 +997,7 @@ EOD;
 			}
 
 			$rightsourceip = NULL;
+			$rightdnsserver = NULL;
 			if (isset($ph1ent['mobile'])) {
 				$rightsourceips = array();
 				if (!empty($a_client['pool_address'])) {
@@ -1036,6 +1011,24 @@ EOD;
 				}
 				if (count($rightsourceips)) {
 					$rightsourceip = "\trightsourceip = " . implode(',', $rightsourceips) . "\n";
+				}
+
+				$rightdnsservers = array();
+				if (!empty($a_client['dns_server1'])) {
+					$rightdnsservers[] = $a_client['dns_server1'];
+				}
+				if (!empty($a_client['dns_server2'])) {
+					$rightdnsservers[] = $a_client['dns_server2'];
+				}
+				if (!empty($a_client['dns_server3'])) {
+					$rightdnsservers[] = $a_client['dns_server3'];
+				}
+				if (!empty($a_client['dns_server4'])) {
+					$rightdnsservers[] = $a_client['dns_server4'];
+				}
+				
+				if (count($rightdnsservers)) {
+					$rightdnsserver = "\trightdns = " . implode(',', $rightdnsservers) . "\n";
 				}
 			}
 
@@ -1403,6 +1396,9 @@ EOD;
 			if (!empty($rightsourceip)) {
 				$ipsecconnect .= "{$rightsourceip}";
 			}
+			if (!empty($rightdnsserver)) {
+				$ipsecconnect .= "{$rightdnsserver}";
+			}
 			if (!empty($ealgosp1)) {
 				$ipsecconnect .= "\t{$ealgosp1}\n";
 			}
@@ -1422,12 +1418,6 @@ EOD;
 				$ipsecconnect .= "\taggressive = {$aggressive}\n";
 			}
 
-			/* Build a list of all IPsec interfaces configured on the firewall at the OS level */
-			foreach (get_interface_arr() as $thisif) {
-				if (substr($thisif, 0, 5) == "ipsec") {
-					$ipsec_vti_cleanup_ifs[] = $thisif;
-				}
-			}
 			if (!isset($ph1ent['mobile']) && ($keyexchange == 'ikev1' || isset($ph1ent['splitconn']))) {
 				if (!empty($rightsubnet_spec)) {
 					$ipsecfin = '';
@@ -1436,14 +1426,18 @@ EOD;
 						//if (!empty($reqids[$idx])) {
 						//	$ipsecfin .= "\treqid = " . $reqids[$idx] . "\n";
 						//}
+						$rightadd = "";
+						$leftadd = "";
 						if (!empty($vtireq[$idx])) {
 							$ipsecfin .= "\treqid = {$ph1ent['ikeid']}00{$idx}\n";
 							/* This interface will be a valid IPsec interface, so remove it from the cleanup list. */
 							$ipsec_vti_cleanup_ifs = array_diff($ipsec_vti_cleanup_ifs, array("ipsec{$ph1ent['ikeid']}00{$idx}"));
+							$rightadd = ",0.0.0.0/0";
+							$leftadd = ",0.0.0.0/0";
 						}
 						$ipsecfin .= $ipsecconnect;
-						$ipsecfin .= "\trightsubnet = {$rsubnet}\n";
-						$ipsecfin .= "\tleftsubnet = " . $leftsubnet_spec[$idx] . "\n";
+						$ipsecfin .= "\trightsubnet = {$rsubnet}{$rightadd}\n";
+						$ipsecfin .= "\tleftsubnet = " . $leftsubnet_spec[$idx] . "{$leftadd}\n";
 					}
 				} else {
 					log_error(sprintf(gettext("No phase2 specifications for tunnel with REQID = %s"), $ikeid));
@@ -1458,10 +1452,14 @@ EOD;
 				//if (!empty($reqids[$idx])) {
 				//	$ipsecfin .= "\treqid = " . $reqids[0] . "\n";
 				//}
+				$rightadd = "";
+				$leftadd = "";
 				if (!empty($vtireq[0])) {
 					$ipsecfin .= "\treqid = {$ph1ent['ikeid']}000\n";
 					/* This interface will be a valid IPsec interface, so remove it from the cleanup list. */
 					$ipsec_vti_cleanup_ifs = array_diff($ipsec_vti_cleanup_ifs, array("ipsec{$ph1ent['ikeid']}000"));
+					$rightadd = ",0.0.0.0/0";
+					$leftadd = ",0.0.0.0/0";
 				}
 				$ipsecfin .= $ipsecconnect;
 				if (!isset($ph1ent['mobile']) && !empty($rightsubnet_spec)) {
@@ -1469,7 +1467,7 @@ EOD;
 					foreach ($rightsubnet_spec as $rightsubnet) {
 						$tempsubnets[$rightsubnet] = $rightsubnet;
 					}
-					$ipsecfin .= "\trightsubnet = " . join(",", $tempsubnets) . "\n";
+					$ipsecfin .= "\trightsubnet = " . join(",", $tempsubnets) . "{$rightadd}\n";
 					unset($tempsubnets, $rightsubnet);
 				}
 				if (!empty($leftsubnet_spec)) {
@@ -1477,7 +1475,7 @@ EOD;
 					foreach ($leftsubnet_spec as $leftsubnet) {
 						$tempsubnets[$leftsubnet] = $leftsubnet;
 					}
-					$ipsecfin .= "\tleftsubnet = " . join(",", $tempsubnets) . "\n";
+					$ipsecfin .= "\tleftsubnet = " . join(",", $tempsubnets) . "{$leftadd}\n";
 					unset($tempsubnets, $leftsubnet);
 				}
 			}
@@ -1512,22 +1510,18 @@ EOD;
 					if (strlen($mkent['pool_address']) < 1 || !is_ipaddr($mkent['pool_address'])) {
 						continue;
 					}
-
+					$clientid = ($mkent['ident_type'] == "none") ? "\"{$mkent['ident']}\"" : "{$mkent['ident_type']}:{$mkent['ident']}";
+					$clienteapid = ($ph1ent['authentication_method'] == "eap-mschapv2") ? $clientid : '%identity';
 					$ipsecfin .= "\nconn mobile-{$mobilekey_counter}\n";
 					$ipsecfin .= "\talso = con-mobile\n";
-					$ipsecfin .= "\teap_identity = %identity\n";
+					$ipsecfin .= "\teap_identity = {$clienteapid}\n";
 					$ipsecfin .= "\trightsourceip = {$mkent['pool_address']}/{$mkent['pool_netbits']}\n";
 
 					if (isset($mkent['dns_address']) && strlen($mkent['dns_address']) > 0 && is_ipaddr($mkent['dns_address'])) {
 						$ipsecfin .= "\trightdns = {$mkent['dns_address']}\n";
 					}
 
-					if ($mkent['ident_type'] == "none") {
-						$ipsecfin .= "\trightid = \"{$mkent['ident']}\"\n";
-					}
-					else {
-						$ipsecfin .= "\trightid = {$mkent['ident_type']}:{$mkent['ident']}\n";
-					}
+					$ipsecfin .= "\trightid = {$clientid}\n";
 
 					// optional: define left|rightid more granular
 					// supported: ipv4, ipv6, rfc822, email, userfqdn, fqdn, dns, asn1dn, asn1gn, keyid

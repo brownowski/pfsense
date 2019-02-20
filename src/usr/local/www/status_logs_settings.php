@@ -3,7 +3,7 @@
  * status_logs_settings.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally based on m0n0wall (http://m0n0.ch/wall)
@@ -103,9 +103,12 @@ if ($_POST['resetlogs'] == gettext("Reset Log Files")) {
 	if (isset($_POST['logfilesize']) && (strlen($_POST['logfilesize']) > 0)) {
 		if (!is_numeric($_POST['logfilesize']) || ($_POST['logfilesize'] < 100000)) {
 			$input_errors[] = gettext("Log file size must be numeric and greater than or equal to 100000.");
+		} elseif ($_POST['logfilesize'] >= (2**32)/2) {
+			$input_errors[] = gettext("Log file size is too large. Set a smaller value.");
 		}
 	}
 	if (!$input_errors) {
+		init_config_arr(array('syslog'));
 		$config['syslog']['reverse'] = $_POST['reverse'] ? true : false;
 		$config['syslog']['nentries'] = (int)$_POST['nentries'];
 		$pconfig['nentries'] = $config['syslog']['nentries'];

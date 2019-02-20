@@ -128,8 +128,8 @@ if (is_array($config['qinqs']['qinqentry']) && count($config['qinqs']['qinqentry
 		/* QinQ members */
 		$qinqifs = explode(' ', $qinq['members']);
 		foreach ($qinqifs as $qinqif) {
-			$portlist["{$qinq['vlanif']}_{$qinqif}"]['descr'] = "QinQ {$qinqif} on VLAN {$qinq['tag']} on {$qinq['if']}";
-			$portlist["{$qinq['vlanif']}_{$qinqif}"]['isqinq'] = true;
+			$portlist["{$qinq['vlanif']}.{$qinqif}"]['descr'] = "QinQ {$qinqif} on VLAN {$qinq['tag']} on {$qinq['if']}";
+			$portlist["{$qinq['vlanif']}.{$qinqif}"]['isqinq'] = true;
 		}
 	}
 }
@@ -191,8 +191,8 @@ if (isset($_REQUEST['add']) && isset($_REQUEST['if_add'])) {
 	if ($portused === false) {
 		/* find next free optional interface number */
 		if (!$config['interfaces']['lan']) {
-			$newifname = gettext("lan");
-			$descr = gettext("LAN");
+			$newifname = "lan";
+			$descr = "LAN";
 		} else {
 			for ($i = 1; $i <= count($config['interfaces']); $i++) {
 				if (!$config['interfaces']["opt{$i}"]) {
@@ -251,7 +251,11 @@ if (isset($_REQUEST['add']) && isset($_REQUEST['if_add'])) {
 	build a list of port-to-interface mappings in portifmap */
 	foreach ($_POST as $ifname => $ifport) {
 		if (($ifname == 'lan') || ($ifname == 'wan') || (substr($ifname, 0, 3) == 'opt')) {
-			$portifmap[$ifport][] = strtoupper($ifname);
+			if (array_key_exists($ifport, $portlist)) {
+				$portifmap[$ifport][] = strtoupper($ifname);
+			} else {
+				$input_errors[] = sprintf(gettext('Cannot set port %1$s because the submitted interface does not exist.'), $ifname);
+			}
 		}
 	}
 

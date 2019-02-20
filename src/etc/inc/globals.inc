@@ -3,7 +3,7 @@
  * globals.inc
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -63,18 +63,13 @@ $g = array(
 	"admin_group" => "admins",
 	"product_name" => "pfSense",
 	"product_version" => trim(file_get_contents("/etc/version"), " \n"),
-	"product_copyright" => "Rubicon Communications, LLC (Netgate)",
-	"product_copyright_url" => "https://pfsense.org/license",
 	"product_copyright_years" => "2004 - ".date("Y"),
-	"product_website" => "www.pfsense.org",
-	"product_website_footer" => "https://www.pfsense.org/?gui=bootstrap",
-	"product_email" => "coreteam@pfsense.org",
 	"disablehelpmenu" => false,
 	"disablehelpicon" => false,
 	"disablecrashreporter" => false,
 	"crashreporterurl" => "https://crashreporter.pfsense.org/crash_reporter.php",
 	"debug" => false,
-	"latest_config" => "18.5",
+	"latest_config" => "19.0",
 	"minimum_ram_warning" => "101",
 	"minimum_ram_warning_text" => "128 MB",
 	"wan_interface_name" => "wan",
@@ -168,6 +163,11 @@ $sysctls = array("net.inet.ip.portrange.first" => "1024",
 	"kern.corefile" => "/root/%N.core" /* Write all core files to /root/ so they do not consume space on other slices */
 );
 
+$machine_type = php_uname('m');
+if (($machine_type == 'arm') || ($machine_type == 'arm64')) {
+	$sysctls['kern.shutdown.secure_halt'] = 1;
+}
+
 /* Include override values for the above if needed. If the file doesn't exist, don't try to load it. */
 if (file_exists("/etc/inc/globals_override.inc")) {
 	@include_once("globals_override.inc");
@@ -227,4 +227,28 @@ $pf_reserved_keywords = array(
 	"maxsrcstates", "maxsrcnodes", "sourcetrack", "global", "rule", "maxsrcconn", "maxsrcconnrate", "overload",
 	"flush", "sloppy", "tagged", "tag", "ifbound", "floating", "statepolicy", "statedefaults", "route", "settos",
 	"divertto", "divertreply", "max", "min", "pptp", "pppoe", "L2TP", "OpenVPN", "IPsec");
+
+/* VLAN Prio values. */
+$vlanprio_values = array(
+	"bk" => 0,
+	"be" => 1,
+	"ee" => 2,
+	"ca" => 3,
+	"vi" => 4,
+	"vo" => 5,
+	"ic" => 6,
+	"nc" => 7
+);
+
+$vlanprio = array(
+	"bk" => "Background (BK, 0)",
+	"be" => "Best Effort (BE, 1)",
+	"ee" => "Excellent Effort (EE, 2)",
+	"ca" => "Critical Applications (CA, 3)",
+	"vi" => "Video (VI, 4)",
+	"vo" => "Voice (VO, 5)",
+	"ic" => "Internetwork Control (IC, 6)",
+	"nc" => "Network Control (NC, 7)"
+);
+
 ?>

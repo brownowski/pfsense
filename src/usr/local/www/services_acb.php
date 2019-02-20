@@ -28,6 +28,7 @@ $exp_sep = '||';
 // $legacy is used to determine whether to work with the old "Gold" ACB system, or the
 // current system
 $legacy = false;
+
 if (isset($_REQUEST['legacy'])) {
 	$legacy = true;
 }
@@ -444,6 +445,43 @@ print($form);
 
 <?php else:
 
+if (!$legacy) {
+	$section2 = new Form_Section('Device key');
+	$group = new Form_Group("Device key");
+
+	$group->add(new Form_Input(
+		'devkey',
+		'Device key',
+		'text',
+		$userkey
+	))->setWidth(7)->setHelp("ID used to identify this firewall (derived from the SSH public key.) " .
+		"See help below for more details. %sPlease make a safe copy of this ID value.%s If it is lost, your backups will" .
+		" be lost too!", "<strong>", "</strong>");
+
+	$group->add(new Form_Button(
+		'upduserkey',
+		'Submit',
+		null,
+		'fa-save'
+	))->addClass('btn-success btn-xs');
+
+	$group->add(new Form_Button(
+		'restore',
+		'Reset',
+		null,
+		'fa-refresh'
+	))->addClass('btn-info btn-xs');
+
+	$section2->add($group);
+	print($section2);
+
+	print('<div class="infoblock">');
+	print_info_box(gettext("The Device key listed above is derived from the SSH public key of the firewall. When a configuration is saved, it is identified by this value." .
+		" If you are restoring the configuration of another firewall, paste the Device key from that firewall into the Device ID field above and click \"Submit\"." .
+		" This will temporarily override the ID for this session."), 'info', false);
+	print('</div>');
+}
+
 ?>
 <div class="panel panel-default">
 	<div class="panel-heading"><h2 class="panel-title"><?=gettext("Automatic Configuration Backups")?></h2></div>
@@ -493,9 +531,13 @@ print($form);
 						<td><?= $cv['localtime']; ?></td>
 						<td><?= $cv['reason']; ?></td>
 						<td>
-							<a class="fa fa-undo"		title="<?=gettext('Restore this revision')?>"	href="services_acb.php?hostname=<?=urlencode($hostname)?>&newver=<?=urlencode($cv['time'])?><?=($legacy ? "&legacy=true":"")?>"	onclick="return confirm('<?=gettext("Are you sure you want to restore {$cv['localtime']}?")?>')"></a>
-							<a class="fa fa-download"	title="<?=gettext('Show info')?>"	href="services_acb.php?download=<?=urlencode($cv['time'])?>&hostname=<?=urlencode($hostname)?>&reason=<?=urlencode($cv['reason'])?><?=($legacy ? "&legacy=true":"")?> "></a>
+							<a class="fa fa-undo"		title="<?=gettext('Restore this revision')?>"	href="services_acb.php?hostname=<?=urlencode($hostname)?>&userkey=<?=urlencode($userkey)?>&newver=<?=urlencode($cv['time'])?><?=($legacy ? "&legacy=true":"")?>"	onclick="return confirm('<?=gettext("Are you sure you want to restore {$cv['localtime']}?")?>')"></a>
+							<a class="fa fa-download"	title="<?=gettext('Show info')?>"	href="services_acb.php?download=<?=urlencode($cv['time'])?>&hostname=<?=urlencode($hostname)?>&userkey=<?=urlencode($userkey)?>&reason=<?=urlencode($cv['reason'])?><?=($legacy ? "&legacy=true":"")?> "></a>
+<?php
+		if ($userkey == $origkey) {
+?>
 							<a class="fa fa-trash"		title="<?=gettext('Delete config')?>"	href="services_acb.php?hostname=<?=urlencode($hostname)?>&rmver=<?=urlencode($cv['time'])?><?=($legacy ? "&legacy=true":"")?>"></a>
+<?php 	} ?>
 						</td>
 					</tr>
 				<?php	$counter++;
@@ -524,41 +566,6 @@ print($form);
 	</div>
 </div>
 <?php
-
-if (!$legacy) {
-	$section2 = new Form_Section('Device key');
-	$group = new Form_Group("Device key");
-
-	$group->add(new Form_Input(
-		'devkey',
-		'Device key',
-		'text',
-		$userkey
-	))->setWidth(7)->setHelp("ID used to identify this firewall (derived from the SSH public key.) " .
-		"See help below for more details.");
-
-	$group->add(new Form_Button(
-		'upduserkey',
-		'Submit',
-		null,
-		'fa-save'
-	))->addClass('btn-success btn-xs');
-
-	$group->add(new Form_Button(
-		'restore',
-		'Reset',
-		null,
-		'fa-refresh'
-	))->addClass('btn-info btn-xs');
-
-	$section2->add($group);
-	print($section2);
-
-	print('<div class="infoblock">');
-	print_info_box(gettext("The Device key listed above is derived from the SSH public key of the firewall. When a configuration is saved, it is identified by this value." .
-		" If you are restoring the configuration of another firewall, paste the Device key from that firewall into the Device ID field above and click \"Submit\"."), 'info', false);
-	print('</div>');
-}
 
 endif; ?>
 

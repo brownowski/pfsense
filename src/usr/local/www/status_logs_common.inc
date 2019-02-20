@@ -3,7 +3,7 @@
  * status_logs_common.inc
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally based on m0n0wall (http://m0n0.ch/wall)
@@ -649,6 +649,8 @@ function manage_log_code() {
 		if (isset($logfilesize) && (strlen($logfilesize) > 0)) {
 			if (!is_numeric($logfilesize) || ($logfilesize < 100000)) {
 				$input_errors[] = gettext("Log file size must be numeric and greater than or equal to 100000.");
+			} elseif ($logfilesize >= (2**32)/2) {
+				$input_errors[] = gettext("Log file size is too large. Set a smaller value.");
 			}
 		}
 
@@ -658,6 +660,7 @@ function manage_log_code() {
 			if (isset($config['syslog'][$specific_log])) {
 				unset($config['syslog'][$specific_log]);
 			}
+			init_config_arr(array('syslog', $specific_log));
 
 		// Common to All Logs
 			if ($cronorder != '') { # if not using the general logging options setting (global)

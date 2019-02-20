@@ -3,7 +3,7 @@
  * help.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -96,7 +96,6 @@ $helppages = array(
 	'interfaces_vlan.php' => 'https://doc.pfsense.org/index.php/VLAN_Trunking',
 	'interfaces_wireless_edit.php' => 'https://doc.pfsense.org/index.php/Wireless_Interfaces',
 	'interfaces_wireless.php' => 'https://doc.pfsense.org/index.php/Wireless_Interfaces',
-	'license.php' => 'https://www.pfsense.org/about-pfsense/#legal',
 	'load_balancer_monitor_edit.php' => 'https://doc.pfsense.org/index.php/Inbound_Load_Balancing',
 	'load_balancer_monitor.php' => 'https://doc.pfsense.org/index.php/Inbound_Load_Balancing',
 	'load_balancer_pool_edit.php' => 'https://doc.pfsense.org/index.php/Inbound_Load_Balancing#Set_up_Load_Balancing_Pool',
@@ -468,6 +467,7 @@ $helppages = array(
 	'tftp_files.php' => 'https://doc.pfsense.org/index.php/Tftpd_package',
 	'tinc_hosts.xml' => 'https://doc.pfsense.org/index.php/Tinc_package',
 	'tinc.xml' => 'https://doc.pfsense.org/index.php/Tinc_package',
+	'vpc_vpn_wizard.xml' => 'https://www.netgate.com/docs/pfsense/solutions/aws-vpn-appliance/vpc-wizard-guide.html',
 	'zabbix-agent-lts.xml' => 'https://doc.pfsense.org/index.php/Zabbix_Agent_package',
 	'zabbix-proxy-lts.xml' => 'https://doc.pfsense.org/index.php/Zabbix_Proxy_package',
 );

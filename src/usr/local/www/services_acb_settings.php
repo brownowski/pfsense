@@ -3,7 +3,7 @@
  * autoconfigbackup_settings.php
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2004-2018 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2004-2019 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally based on m0n0wall (http://m0n0.ch/wall)
@@ -32,7 +32,33 @@
 
 require_once("guiconfig.inc");
 require_once("functions.inc");
+require_once("pfsense-utils.inc");
+require_once("services.inc");
 
+function index_of_command() {
+	global $croncmd, $a_cron;
+
+	$i = 0;
+	$rv = -1;
+
+	if (count($a_cron) > 0) {
+		foreach ($a_cron as $ent) {
+			if ($ent['command'] === $croncmd) {
+				return $i;
+			}
+
+		$i++;
+		}
+	}
+
+	return $rv;
+
+}
+
+$croncmd = "/usr/bin/nice -n20 /usr/local/bin/php /usr/local/sbin/execacb.php";
+
+init_config_arr(array('cron', 'item'));
+$a_cron = &$config['cron']['item'];
 $pconfig = $config['system']['acb'];
 
 
@@ -60,6 +86,12 @@ if (isset($_POST['save'])) {
 			$input_errors[] = gettext("Encryption password and confirmation do not match");
 		} else {
 			$update_ep = true;
+		}
+	}
+
+	if ($_POST['frequency'] === 'cron') {
+		if (!preg_match('/^[0-9\*\/\-\,]+$/', $_POST['hours'] . $_POST['day'] . $_POST['month'] . $_POST['dow']))  {
+			$input_errors[] = gettext("Schedule values may only contain 0-9 - , / *");
 		}
 	}
 
@@ -118,8 +150,35 @@ if (isset($_POST['save'])) {
 
 		$config['system']['acb']['gold_username'] = $pconfig['gold_username'];
 		$config['system']['acb']['hint'] = $pconfig['hint'];
+		$config['system']['acb']['frequency'] = $pconfig['frequency'];
+		$config['system']['acb']['hours'] = $pconfig['hours'];
+		$config['system']['acb']['month'] = $pconfig['month'];
+		$config['system']['acb']['day'] = $pconfig['day'];
+		$config['system']['acb']['dow'] = $pconfig['dow'];
 
-		write_config("AutoCcnfigBackup settings updated");
+		// Remove any existing cron jobs
+		$cronid = index_of_command();
+
+		if ($cronid >= 0) {
+			unset($a_cron[$cronid]);
+		}
+
+		if ($pconfig['frequency'] === "cron") {
+			$ent = array();
+			$ent['minute'] = '0';
+			$ent['hour'] = $pconfig['hours'];
+			$ent['mday'] = $pconfig['day'];
+			$ent['month'] = $pconfig['month'];
+			$ent['wday'] = $pconfig['dow'];
+			$ent['who'] = 'root';
+			$ent['command'] = $croncmd;
+
+			$a_cron[] = $ent;
+
+		}
+
+		write_config("AutoConfigBackup settings updated");
+		configure_cron();
 	}
 }
 
@@ -153,6 +212,71 @@ $section->addInput(new Form_Checkbox(
 	($pconfig['enable'] == "yes")
 ));
 
+$group = new Form_MultiCheckboxGroup('Backup Frequency');
+
+$group->add(new Form_MultiCheckbox(
+	'frequency',
+	'',
+	'Automatically backup on every configuration change',
+	(!isset($pconfig['frequency']) || $pconfig['frequency'] === 'every'),
+	'every'
+))->displayasRadio();
+/*
+$group->add(new Form_MultiCheckbox(
+	'frequency',
+	'',
+	'Backup manually only',
+	($pconfig['frequency'] === 'manual'),
+	'manual'
+))->displayasRadio();
+*/
+$group->add(new Form_MultiCheckbox(
+	'frequency',
+	'',
+	'Automatically backup on a regular schedule',
+	($pconfig['frequency'] === 'cron'),
+	'cron'
+))->displayasRadio();
+
+$group->addClass("notoggleall");
+$section->add($group);
+
+
+$group = new Form_Group("Schedule");
+
+$group->add(new Form_Input(
+	'hours',
+	'Hour',
+	'text',
+	(isset($pconfig['hours']) ? $pconfig['hours']:'0')
+))->setHelp("Hours (0-23)");
+
+$group->add(new Form_Input(
+	'day',
+	'Day of month',
+	'text',
+	(isset($pconfig['day']) ? $pconfig['day']:'*')
+))->setHelp("Day (1-31)");
+
+$group->add(new Form_Input(
+	'month',
+	'Month',
+	'text',
+	(isset($pconfig['month']) ? $pconfig['month']:'*')
+))->setHelp("Month (1-12)");
+
+$group->add(new Form_Input(
+	'dow',
+	'Day of week',
+	'text',
+	(isset($pconfig['dow']) ? $pconfig['dow']:'*')
+))->setHelp("Day of week (0-6)");
+
+$group->addClass("cronsched");
+$group->setHelp(sprintf('Use * ("every"), divisor or exact value.  Minutes are fixed at 0. See %s for more information.',
+	'<a href="https://www.freebsd.org/cgi/man.cgi?crontab(5)" target="_blank">Cron format</a>'));
+$section->add($group);
+
 $section->addPassword(new Form_Input(
 	'encryption_password',
 	'*Encryption Password',
@@ -162,11 +286,11 @@ $section->addPassword(new Form_Input(
 
 $section->addInput(new Form_Input(
 	'hint',
-	'Hint',
+	'Identifier',
 	'text',
 	$pconfig['hint']
-))->setHelp("You may optionally provide a hint which will be stored in plain text along with each encrypted backup. " .
-			"This may allow the Netgate support team to recover your key should you lose it.");
+))->setHelp("You may optionally provide an identifier which will be stored in plain text along with each encrypted backup. " .
+			"This may allow the Netgate support team to locate your key should you lose it.");
 
 $form->add($section);
 
@@ -227,6 +351,12 @@ print $form;
 				$('#legacy').val('no');
 			}
 		});
+
+		$('input:radio[name=frequency]').click(function() {
+			hideClass("cronsched", ($(this).val() != 'cron'));
+		});
+
+		hideClass("cronsched", ("<?=$pconfig['frequency']?>" != 'cron'));
 	});
 //]]>
 </script>
